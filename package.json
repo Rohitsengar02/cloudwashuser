@@ -3,6 +3,6 @@
     "version": "1.0.0",
     "description": "CloudWash User App",
     "scripts": {
-        "build": "echo 'Building...'"
+        "build": "mkdir -p public && cp -r build/web/* public/"
     }
 }

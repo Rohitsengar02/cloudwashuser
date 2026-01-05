@@ -4,12 +4,8 @@
     "cleanUrls": true,
     "rewrites": [
         {
-            "source": "/(assets/.*|canvaskit/.*|flutter.*js|main.dart.js|manifest.json|favicon.png|version.json)",
-            "destination": "/build/web/$1"
-        },
-        {
             "source": "/(.*)",
-            "destination": "/build/web/index.html"
+            "destination": "/index.html"
         }
     ]
 }

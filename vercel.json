@@ -1,11 +1,14 @@
 {
+    "version": 2,
+    "public": true,
+    "cleanUrls": true,
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/(assets/.*|canvaskit/.*|flutter.*js|main.dart.js|manifest.json|favicon.png|version.json)",
             "destination": "/build/web/$1"
         },
         {
-            "source": "/",
+            "source": "/(.*)",
             "destination": "/build/web/index.html"
         }
     ]

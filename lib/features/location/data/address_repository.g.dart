@@ -1,27 +1,27 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'api_client.dart';
+part of 'address_repository.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$apiClientHash() => r'da1b3aa54f1bc2def43cf387dca94efc7b40ec7e';
+String _$addressRepositoryHash() => r'6cfd7f62bc3631b65af2e21b56b04d85ab1d30b0';
 
-/// See also [apiClient].
-@ProviderFor(apiClient)
-final apiClientProvider = Provider<Dio>.internal(
-  apiClient,
-  name: r'apiClientProvider',
+/// See also [addressRepository].
+@ProviderFor(addressRepository)
+final addressRepositoryProvider = Provider<AddressRepository>.internal(
+  addressRepository,
+  name: r'addressRepositoryProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$apiClientHash,
+      : _$addressRepositoryHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef ApiClientRef = ProviderRef<Dio>;
+typedef AddressRepositoryRef = ProviderRef<AddressRepository>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

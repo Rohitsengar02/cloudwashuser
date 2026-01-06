@@ -1,27 +1,27 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'api_client.dart';
+part of 'auth_state_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$apiClientHash() => r'da1b3aa54f1bc2def43cf387dca94efc7b40ec7e';
+String _$authStateHash() => r'4fa3bab6194a7d0524cf4b4d326d4ca28d867527';
 
-/// See also [apiClient].
-@ProviderFor(apiClient)
-final apiClientProvider = Provider<Dio>.internal(
-  apiClient,
-  name: r'apiClientProvider',
+/// See also [authState].
+@ProviderFor(authState)
+final authStateProvider = AutoDisposeStreamProvider<bool>.internal(
+  authState,
+  name: r'authStateProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$apiClientHash,
+      : _$authStateHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef ApiClientRef = ProviderRef<Dio>;
+typedef AuthStateRef = AutoDisposeStreamProviderRef<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

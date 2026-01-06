@@ -1,7 +1,11 @@
-import 'package:cloud_user/core/theme/app_theme.dart';
-import 'package:cloud_user/features/web/presentation/web_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_user/features/orders/data/order_provider.dart';
+import 'package:cloud_user/features/orders/data/order_model.dart';
+import 'package:cloud_user/features/web/presentation/web_layout.dart';
+import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class WebBookingsScreen extends ConsumerStatefulWidget {
   const WebBookingsScreen({super.key});
@@ -11,423 +15,1135 @@ class WebBookingsScreen extends ConsumerStatefulWidget {
 }
 
 class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
-  int _selectedIndex = 0;
+  String _selectedFilter = 'all';
 
   @override
   Widget build(BuildContext context) {
+    final ordersStream = ref.watch(userOrdersRealtimeProvider);
+
+    // Use WebLayout, but avoid Scaffold nesting and infinite height issues
     return WebLayout(
-      child: SingleChildScrollView(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 40),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'My Bookings',
-                    style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 600),
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A73E8).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Track and manage your service requests',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  child: const Icon(
+                    Icons.calendar_month_rounded,
+                    color: Color(0xFF1A73E8),
+                    size: 32,
                   ),
-                  const SizedBox(height: 60),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Sidebar: Filters
-                      SizedBox(
-                        width: 280,
-                        child: Column(
-                          children: [
-                            _BookingFilterItem(
-                              label: 'Ongoing',
-                              icon: Icons.access_time_filled,
-                              isSelected: _selectedIndex == 0,
-                              onTap: () => setState(() => _selectedIndex = 0),
-                            ),
-                            _BookingFilterItem(
-                              label: 'History',
-                              icon: Icons.history,
-                              isSelected: _selectedIndex == 1,
-                              onTap: () => setState(() => _selectedIndex = 1),
-                            ),
-                            _BookingFilterItem(
-                              label: 'Cancelled',
-                              icon: Icons.cancel,
-                              isSelected: _selectedIndex == 2,
-                              onTap: () => setState(() => _selectedIndex = 2),
-                            ),
-                            const SizedBox(height: 48),
-                            // Promo Card in sidebar
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppTheme.primary,
-                                    AppTheme.primaryLight,
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    color: Colors.white,
-                                    size: 32,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Premium Plan',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Get 20% off on your next 5 bookings with Plus.',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    onPressed: () {},
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: AppTheme.primary,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    child: const Text('Upgrade Now'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                ),
+                const SizedBox(width: 20),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Bookings',
+                      style: GoogleFonts.outfit(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1F2937),
+                      ),
+                    ),
+                    Text(
+                      'Manage and track all your service requests',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 32),
+
+            // Filters
+            _buildFilterBar(),
+
+            const SizedBox(height: 32),
+
+            // Orders Grid
+            ordersStream.when(
+              data: (orders) {
+                // Filter orders
+                final filteredOrders = _selectedFilter == 'all'
+                    ? orders
+                    : orders.where((o) => o.status == _selectedFilter).toList();
+
+                if (filteredOrders.isEmpty) {
+                  return _buildEmptyState(orders.isEmpty);
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true, // CRITICAL: Allows scrolling by parent
+                  physics:
+                      const NeverScrollableScrollPhysics(), // CRITICAL: Disable internal scroll
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 500,
+                    mainAxisExtent: 360, // Increased height to prevent overflow
+                    crossAxisSpacing: 24,
+                    mainAxisSpacing: 24,
+                  ),
+                  itemCount: filteredOrders.length,
+                  itemBuilder: (context, index) => _BookingCard(
+                    order: filteredOrders[index],
+                    onTap: () =>
+                        _showOrderDetails(context, filteredOrders[index]),
+                  ),
+                );
+              },
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+              error: (error, stack) => _buildErrorState(error.toString()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterBar() {
+    final filters = [
+      {'label': 'All', 'value': 'all', 'icon': Icons.apps},
+      {'label': 'Active', 'value': 'pending', 'icon': Icons.access_time_filled},
+      {'label': 'Confirmed', 'value': 'confirmed', 'icon': Icons.thumb_up},
+      {
+        'label': 'In Progress',
+        'value': 'in-progress',
+        'icon': Icons.cleaning_services,
+      },
+      {'label': 'Completed', 'value': 'completed', 'icon': Icons.check_circle},
+      {'label': 'Cancelled', 'value': 'cancelled', 'icon': Icons.cancel},
+    ];
+
+    return Container(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: filters.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final filter = filters[index];
+          final isSelected = _selectedFilter == filter['value'];
+          return InkWell(
+            onTap: () =>
+                setState(() => _selectedFilter = filter['value'] as String),
+            borderRadius: BorderRadius.circular(30),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFF1A73E8) : Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF1A73E8)
+                      : const Color(0xFFE5E7EB),
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF1A73E8).withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
-                      const SizedBox(width: 60),
-                      // Right Panel: Booking List
-                      Expanded(
-                        child: _selectedIndex == 0
-                            ? _buildOngoingList()
-                            : _selectedIndex == 1
-                            ? _buildHistoryList()
-                            : _buildEmptyState(
-                                'No cancelled bookings',
-                                'You haven\'t cancelled any bookings recently.',
-                              ),
-                      ),
-                    ],
+                      ]
+                    : [],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    filter['icon'] as IconData,
+                    size: 18,
+                    color: isSelected ? Colors.white : const Color(0xFF6B7280),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    filter['label'] as String,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF374151),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildOngoingList() {
-    return Column(
-      children: [
-        _WebBookingCard(
-          id: 'ORD-8821',
-          service: 'Luxury Spa Experience',
-          dateTime: 'Tomorrow, 10:30 AM',
-          price: '₹2,299',
-          status: 'Professional Assigned',
-          statusColor: Colors.blue,
-        ),
-        const SizedBox(height: 24),
-        _WebBookingCard(
-          id: 'ORD-8825',
-          service: 'Deep Kitchen Cleaning',
-          dateTime: '15 Jan, 09:00 AM',
-          price: '₹1,499',
-          status: 'Confirmed',
-          statusColor: Colors.orange,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHistoryList() {
-    return Column(
-      children: [
-        _WebBookingCard(
-          id: 'ORD-7710',
-          service: 'Home Painting Service',
-          dateTime: '02 Jan, 11:00 AM',
-          price: '₹12,899',
-          status: 'Completed',
-          statusColor: Colors.green,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmptyState(String title, String subtitle) {
+  Widget _buildEmptyState(bool noOrdersAtAll) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 100),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(
-              Icons.calendar_month_outlined,
-              size: 100,
-              color: Colors.grey.shade200,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BookingFilterItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _BookingFilterItem({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withOpacity(0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? AppTheme.primary.withOpacity(0.2)
-                : Colors.transparent,
-          ),
-          boxShadow: [
-            if (isSelected)
-              BoxShadow(
-                color: AppTheme.primary.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? AppTheme.primary : Colors.grey,
-              size: 22,
-            ),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? AppTheme.primary : Colors.black,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 16,
-              ),
-            ),
-            const Spacer(),
-            if (isSelected)
-              Icon(Icons.chevron_right, color: AppTheme.primary, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WebBookingCard extends StatelessWidget {
-  final String id;
-  final String service;
-  final String dateTime;
-  final String price;
-  final String status;
-  final Color statusColor;
-
-  const _WebBookingCard({
-    required this.id,
-    required this.service,
-    required this.dateTime,
-    required this.price,
-    required this.status,
-    required this.statusColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 80),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
+            padding: const EdgeInsets.all(32),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF3F4F6),
+              shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.cleaning_services_outlined,
-              color: statusColor,
-              size: 32,
+              noOrdersAtAll
+                  ? Icons.calendar_today_rounded
+                  : Icons.filter_list_off,
+              size: 64,
+              color: Color(0xFF9CA3AF),
             ),
           ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          const SizedBox(height: 24),
+          Text(
+            noOrdersAtAll ? 'No Bookings Yet' : 'No $_selectedFilter orders',
+            style: GoogleFonts.outfit(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1F2937),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            noOrdersAtAll
+                ? 'Your service history will appear here once you make a booking'
+                : 'Try changing the status filter to see other orders',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+          if (noOrdersAtAll) ...[
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => context.go('/'),
+              icon: const Icon(Icons.add_circle, size: 20),
+              label: const Text('Book New Service'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1A73E8),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 20,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 400),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 64, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(
+            'Something went wrong',
+            style: GoogleFonts.outfit(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(error, style: GoogleFonts.inter(color: Colors.grey)),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: () => ref.invalidate(userOrdersRealtimeProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showOrderDetails(BuildContext context, OrderModel order) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Order Details',
+      pageBuilder: (context, _, __) => _BookingDetailsModal(order: order),
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (context, anim, _, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _BookingCard extends StatefulWidget {
+  final OrderModel order;
+  final VoidCallback onTap;
+
+  const _BookingCard({required this.order, required this.onTap});
+
+  @override
+  State<_BookingCard> createState() => _BookingCardState();
+}
+
+class _BookingCardState extends State<_BookingCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: _isHovered
+                  ? const Color(0xFF1A73E8).withValues(alpha: 0.3)
+                  : Colors.transparent,
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _isHovered
+                    ? const Color(0xFF1A73E8).withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: _isHovered ? 24 : 12,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      id,
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(30),
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 12,
+                        '#${widget.order.orderNumber}',
+                        style: GoogleFonts.sourceCodePro(
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
+                          color: const Color(0xFF374151),
                         ),
+                      ),
+                    ),
+                    _StatusPill(status: widget.order.status),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Body
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 16,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            DateFormat(
+                              'MMM dd, yyyy • hh:mm a',
+                            ).format(widget.order.createdAt),
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF6B7280),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '${widget.order.services.length} Service(s)',
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.order.services.map((s) => s.name).join(', '),
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF6B7280),
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 16,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              widget.order.address.fullAddress ?? 'No address',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF6B7280),
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Footer
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(22),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total Amount',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      '₹${widget.order.priceSummary.total.toStringAsFixed(2)}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1A73E8),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  service,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    height: 1.2,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String status;
+
+  const _StatusPill({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    Color bg;
+    IconData icon;
+    String text;
+
+    switch (status) {
+      case 'pending':
+        color = const Color(0xFFD97706);
+        bg = const Color(0xFFFFFBEB);
+        icon = Icons.hourglass_empty;
+        text = 'Pending';
+        break;
+      case 'confirmed':
+        color = const Color(0xFF2563EB);
+        bg = const Color(0xFFEFF6FF);
+        icon = Icons.check_circle_outline;
+        text = 'Confirmed';
+        break;
+      case 'in-progress':
+        color = const Color(0xFF7C3AED);
+        bg = const Color(0xFFF5F3FF);
+        icon = Icons.cleaning_services_outlined;
+        text = 'In Progress';
+        break;
+      case 'completed':
+        color = const Color(0xFF059669);
+        bg = const Color(0xFFECFDF5);
+        icon = Icons.task_alt;
+        text = 'Completed';
+        break;
+      case 'cancelled':
+        color = const Color(0xFFDC2626);
+        bg = const Color(0xFFFEF2F2);
+        icon = Icons.cancel_outlined;
+        text = 'Cancelled';
+        break;
+      default:
+        color = Colors.grey;
+        bg = Colors.grey.shade100;
+        icon = Icons.info_outline;
+        text = status;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: GoogleFonts.inter(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingDetailsModal extends ConsumerStatefulWidget {
+  final OrderModel order;
+
+  const _BookingDetailsModal({required this.order});
+
+  @override
+  ConsumerState<_BookingDetailsModal> createState() =>
+      _BookingDetailsModalState();
+}
+
+class _BookingDetailsModalState extends ConsumerState<_BookingDetailsModal> {
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 500,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 40,
+                offset: const Offset(-10, 0),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6))),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF3F4F6),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order Details',
+                            style: GoogleFonts.outfit(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '#${widget.order.orderNumber}',
+                            style: GoogleFonts.sourceCodePro(
+                              color: Colors.grey,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _StatusPill(status: widget.order.status),
+                  ],
+                ),
+              ),
+
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // OTP Section
+                      if (widget.order.otp.isNotEmpty &&
+                          widget.order.status != 'completed' &&
+                          widget.order.status != 'cancelled') ...[
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.lock_outline,
+                                  color: Color(0xFF2563EB),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Order OTP',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF1E40AF),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Share with professional',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFF60A5FA),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  widget.order.otp,
+                                  style: GoogleFonts.sourceCodePro(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 4,
+                                    color: const Color(0xFF1E40AF),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      _sectionTitle('Delivery Location'),
+                      const SizedBox(height: 12),
+                      _detailCard(
+                        icon: Icons.location_on_rounded,
+                        title: widget.order.address.name ?? 'Address',
+                        subtitle: widget.order.address.fullAddress ?? 'N/A',
+                        trailing: widget.order.address.phone,
+                      ),
+
+                      const SizedBox(height: 32),
+                      _sectionTitle('Services & Addons'),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFF3F4F6)),
+                        ),
+                        child: Column(
+                          children: [
+                            ...widget.order.services.map(
+                              (s) => _serviceItem(
+                                s.name,
+                                'x${s.quantity}',
+                                s.total,
+                              ),
+                            ),
+                            if (widget.order.addons.isNotEmpty)
+                              ...widget.order.addons.map(
+                                (a) => _serviceItem(
+                                  '${a.name} (Addon)',
+                                  '1',
+                                  a.price,
+                                  isAddon: true,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+                      _sectionTitle('Payment Summary'),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          children: [
+                            _priceRow(
+                              'Subtotal',
+                              widget.order.priceSummary.subtotal,
+                            ),
+                            const SizedBox(height: 8),
+                            _priceRow('Tax', widget.order.priceSummary.tax),
+                            const SizedBox(height: 8),
+                            _priceRow(
+                              'Delivery',
+                              widget.order.priceSummary.deliveryCharge,
+                            ),
+                            if (widget.order.priceSummary.discount > 0) ...[
+                              const SizedBox(height: 8),
+                              _priceRow(
+                                'Discount',
+                                -widget.order.priceSummary.discount,
+                                isGreen: true,
+                              ),
+                            ],
+                            const Divider(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total Paid',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${widget.order.priceSummary.total.toStringAsFixed(2)}',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF1A73E8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 48), // Bottom spacing
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    _infoBadge(Icons.calendar_today_outlined, dateTime),
-                    const SizedBox(width: 16),
-                    _infoBadge(Icons.payments_outlined, price),
-                  ],
+              ),
+
+              // Bottom Actions
+              if (widget.order.status == 'pending' ||
+                  widget.order.status == 'confirmed')
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(top: BorderSide(color: Color(0xFFF3F4F6))),
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          _showCancelDialog(context, widget.order, ref),
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      label: const Text('Cancel Booking'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFFDC2626),
+                        side: const BorderSide(color: Color(0xFFFECACA)),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Text(
+      title.toUpperCase(),
+      style: GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+        color: const Color(0xFF9CA3AF),
+      ),
+    );
+  }
+
+  Widget _detailCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    String? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF3F4F6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF4B5563)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1F2937),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF6B7280),
+                    fontSize: 13,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 48),
-          Column(
-            children: [
-              _actionButton('View Details', false, () {}),
-              const SizedBox(height: 12),
-              _actionButton('Track Service', true, () {}),
-            ],
-          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                trailing,
+                style: GoogleFonts.sourceCodePro(
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1D4ED8),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _infoBadge(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(10),
-      ),
+  Widget _serviceItem(
+    String name,
+    String qty,
+    double price, {
+    bool isAddon = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.grey),
-          const SizedBox(width: 8),
+          if (isAddon)
+            const Icon(Icons.add_circle_outline, size: 16, color: Colors.blue)
+          else
+            const Icon(
+              Icons.check_circle_outline,
+              size: 16,
+              color: Colors.green,
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  qty,
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
           Text(
-            text,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            '₹${price.toStringAsFixed(2)}',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
           ),
         ],
       ),
     );
   }
 
-  Widget _actionButton(String label, bool isPrimary, VoidCallback onTap) {
-    return SizedBox(
-      width: 160,
-      height: 48,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isPrimary ? AppTheme.primary : Colors.white,
-          foregroundColor: isPrimary ? Colors.white : Colors.black,
-          elevation: 0,
-          side: isPrimary ? null : BorderSide(color: Colors.grey.shade200),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+  Widget _priceRow(String label, double amount, {bool isGreen = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: GoogleFonts.inter(color: const Color(0xFF4B5563))),
+        Text(
+          '₹${amount.abs().toStringAsFixed(2)}',
+          style: GoogleFonts.sourceCodePro(
+            fontWeight: FontWeight.w600,
+            color: isGreen ? Colors.green : const Color(0xFF1F2937),
           ),
         ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      ],
+    );
+  }
+
+  void _showCancelDialog(
+    BuildContext context,
+    OrderModel order,
+    WidgetRef ref,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String? selectedReason;
+        final reasonController = TextEditingController();
+
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Cancel Booking',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+            content: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Please select a reason for cancellation:',
+                    style: GoogleFonts.inter(color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 16),
+                  ...[
+                    'Changed my mind',
+                    'Found better price',
+                    'Scheduling conflict',
+                    'Other',
+                  ].map(
+                    (reason) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: selectedReason == reason
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFFE5E7EB),
+                          width: 1.5,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        color: selectedReason == reason
+                            ? const Color(0xFFFEF2F2)
+                            : Colors.white,
+                      ),
+                      child: RadioListTile<String>(
+                        title: Text(
+                          reason,
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+                        ),
+                        value: reason,
+                        groupValue: selectedReason,
+                        onChanged: (val) =>
+                            setState(() => selectedReason = val),
+                        activeColor: const Color(0xFFEF4444),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (selectedReason == 'Other') ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: reasonController,
+                      decoration: InputDecoration(
+                        hintText: 'Tell us more...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFF9FAFB),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back'),
+              ),
+              ElevatedButton(
+                onPressed: selectedReason == null
+                    ? null
+                    : () async {
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        final reason = selectedReason == 'Other'
+                            ? reasonController.text
+                            : selectedReason!;
+
+                        // Close Cancel Dialog
+                        navigator.pop();
+                        // Close Details Sidebar
+                        navigator.pop();
+
+                        try {
+                          await ref
+                              .read(userOrdersProvider.notifier)
+                              .cancelOrder(order.id, reason);
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Order cancelled successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Failed: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Confirm Cancellation'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

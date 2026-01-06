@@ -1,18 +1,79 @@
 import 'package:cloud_user/core/theme/app_theme.dart';
+import 'package:cloud_user/features/location/data/address_provider.dart';
 import 'package:cloud_user/features/web/presentation/web_layout.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-class AddAddressScreen extends StatefulWidget {
+class AddAddressScreen extends ConsumerStatefulWidget {
   const AddAddressScreen({super.key});
 
   @override
-  State<AddAddressScreen> createState() => _AddAddressScreenState();
+  ConsumerState<AddAddressScreen> createState() => _AddAddressScreenState();
 }
 
-class _AddAddressScreenState extends State<AddAddressScreen> {
+class _AddAddressScreenState extends ConsumerState<AddAddressScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _houseNumberController = TextEditingController();
+  final _streetController = TextEditingController();
+  final _landmarkController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _pincodeController = TextEditingController();
+
   String _addressType = 'Home';
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _houseNumberController.dispose();
+    _streetController.dispose();
+    _landmarkController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveAddress() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final addressData = {
+        'label': _addressType,
+        'name': _nameController.text,
+        'phone': _phoneController.text,
+        'houseNumber': _houseNumberController.text,
+        'street': _streetController.text,
+        'landmark': _landmarkController.text,
+        'city': _cityController.text,
+        'pincode': _pincodeController.text,
+        'isDefault': true, // Make new address default
+      };
+
+      await ref.read(userAddressesProvider.notifier).addAddress(addressData);
+
+      if (mounted) {
+        context.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Address saved successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save address: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,27 +101,54 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
               ),
               const SizedBox(height: 32),
 
-              _buildTextField('Full Name', Icons.person_outline),
+              _buildTextField(
+                'Full Name',
+                Icons.person_outline,
+                _nameController,
+              ),
               const SizedBox(height: 16),
               _buildTextField(
                 'Phone Number',
                 Icons.phone_android_outlined,
+                _phoneController,
                 keyboardType: TextInputType.phone,
               ),
               const SizedBox(height: 16),
-              _buildTextField('Address Line 1', Icons.location_on_outlined),
+              _buildTextField(
+                'Flat / House No. / Floor',
+                Icons.home_outlined,
+                _houseNumberController,
+              ),
               const SizedBox(height: 16),
-              _buildTextField('Locality / Landmark', Icons.storefront_outlined),
+              _buildTextField(
+                'Street / Area / Locality',
+                Icons.location_on_outlined,
+                _streetController,
+              ),
+              const SizedBox(height: 16),
+              _buildTextField(
+                'Locality / Landmark (Optional)',
+                Icons.storefront_outlined,
+                _landmarkController,
+                required: false,
+              ),
               const SizedBox(height: 16),
 
               Row(
                 children: [
-                  Expanded(child: _buildTextField('City', Icons.location_city)),
+                  Expanded(
+                    child: _buildTextField(
+                      'City',
+                      Icons.location_city,
+                      _cityController,
+                    ),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: _buildTextField(
                       'PIN Code',
                       Icons.pin_drop_outlined,
+                      _pincodeController,
                       keyboardType: TextInputType.number,
                     ),
                   ),
@@ -88,11 +176,7 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: _isLoading ? null : _saveAddress,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
@@ -100,10 +184,22 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Save Address',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Save Address',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],
@@ -130,10 +226,13 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
 
   Widget _buildTextField(
     String label,
-    IconData icon, {
+    IconData icon,
+    TextEditingController controller, {
     TextInputType? keyboardType,
+    bool required = true,
   }) {
     return TextFormField(
+      controller: controller,
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
@@ -153,7 +252,9 @@ class _AddAddressScreenState extends State<AddAddressScreen> {
         filled: true,
         fillColor: Colors.grey.shade50,
       ),
-      validator: (value) => value!.isEmpty ? 'Required' : null,
+      validator: required
+          ? (value) => value!.isEmpty ? 'Required' : null
+          : null,
     );
   }
 

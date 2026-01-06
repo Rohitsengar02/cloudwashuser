@@ -1,13 +1,17 @@
 import 'package:cloud_user/core/models/service_model.dart';
-import 'package:cloud_user/features/bookings/presentation/bookings_screen.dart';
+import 'package:cloud_user/features/auth/presentation/login_screen.dart';
+import 'package:cloud_user/features/auth/presentation/web_login_screen.dart';
+import 'package:cloud_user/features/auth/presentation/register_screen.dart';
+import 'package:cloud_user/features/auth/presentation/otp_screen.dart';
+import 'package:cloud_user/features/orders/presentation/bookings_screen.dart';
+import 'package:cloud_user/features/bookings/presentation/booking_details_screen.dart';
 import 'package:cloud_user/features/home/presentation/home_screen.dart';
+import 'package:cloud_user/features/notifications/presentation/screens/notifications_screen.dart';
 
 import 'package:cloud_user/features/home/presentation/service_details_screen.dart';
 import 'package:cloud_user/features/home/presentation/scaffold_with_nav_bar.dart';
 import 'package:cloud_user/features/profile/presentation/profile_screen.dart';
 import 'package:cloud_user/features/rewards/presentation/rewards_screen.dart';
-import 'package:cloud_user/features/auth/presentation/login_screen.dart';
-import 'package:cloud_user/features/auth/presentation/otp_screen.dart';
 import 'package:cloud_user/features/location/presentation/map_screen.dart';
 import 'package:cloud_user/features/cart/presentation/cart_screen.dart';
 import 'package:cloud_user/features/cart/presentation/checkout_screen.dart';
@@ -21,6 +25,8 @@ import 'package:cloud_user/features/web/presentation/web_static_page.dart';
 import 'package:cloud_user/features/home/presentation/services_list_screen.dart';
 import 'package:cloud_user/features/web/presentation/web_services_list_screen.dart';
 import 'package:cloud_user/features/location/presentation/add_address_screen.dart';
+import 'package:cloud_user/features/profile/presentation/edit_profile_screen.dart';
+import 'package:cloud_user/features/profile/presentation/personal_info_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -62,24 +68,15 @@ GoRouter _buildWebRouter() {
     routes: [
       GoRoute(
         path: '/',
-        name: 'home',
+        name: 'web-home',
         builder: (context, state) => const WebHomeScreen(),
       ),
       GoRoute(
-        path: '/login',
-        name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        path: '/notifications',
+        name: 'web-notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
-      GoRoute(
-        path: '/otp',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
-          return OtpScreen(
-            phone: extra['phone'] as String,
-            generatedOtp: extra['otp'] as String,
-          );
-        },
-      ),
+
       GoRoute(
         path: '/category/:id',
         name: 'category',
@@ -118,13 +115,52 @@ GoRouter _buildWebRouter() {
       ),
       GoRoute(
         path: '/bookings',
-        name: 'bookings',
+        name: 'web-bookings',
         builder: (context, state) => const WebBookingsScreen(),
       ),
       GoRoute(
+        path: '/booking-details/:id',
+        name: 'bookingDetails',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return BookingDetailsScreen(bookingId: id);
+        },
+      ),
+      GoRoute(
         path: '/profile',
-        name: 'profile',
+        name: 'web-profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        name: 'editProfile',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/personal-info',
+        name: 'personalInfo',
+        builder: (context, state) => const PersonalInfoScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: 'web-login',
+        builder: (context, state) => const WebLoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        name: 'register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/otp',
+        name: 'web-otp',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, String>;
+          return OtpScreen(
+            phone: extras['phone']!,
+            generatedOtp: extras['otp']!,
+          );
+        },
       ),
       GoRoute(
         path: '/service-details',
@@ -194,22 +230,13 @@ GoRouter _buildMobileRouter() {
     navigatorKey: _rootNavigatorKey,
     debugLogDiagnostics: true,
     routes: [
+      GoRoute(path: '/', builder: (context, state) => const LoginScreen()),
       GoRoute(
-        path: '/',
-        name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        path: '/notifications',
+        name: 'notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
-      GoRoute(
-        path: '/otp',
-        name: 'otp',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
-          return OtpScreen(
-            phone: extra['phone'] as String,
-            generatedOtp: extra['otp'] as String,
-          );
-        },
-      ),
+
       GoRoute(
         path: '/map',
         name: 'map',
@@ -252,6 +279,40 @@ GoRouter _buildMobileRouter() {
           return ServiceDetailsScreen(service: service);
         },
       ),
+      GoRoute(
+        path: '/booking-details/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return BookingDetailsScreen(bookingId: id);
+        },
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/personal-info',
+        builder: (context, state) => const PersonalInfoScreen(),
+      ),
+      GoRoute(
+        path: '/login',
+        name: 'mobile-login',
+        builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/otp',
+        builder: (context, state) {
+          final extras = state.extra as Map<String, String>;
+          return OtpScreen(
+            phone: extras['phone']!,
+            generatedOtp: extras['otp']!,
+          );
+        },
+      ),
       // Stateful Nested Shell Route (Bottom Navigation)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -264,7 +325,7 @@ GoRouter _buildMobileRouter() {
             routes: [
               GoRoute(
                 path: '/home',
-                name: 'home',
+                name: 'mobile-home',
                 builder: (context, state) => const HomeScreen(),
               ),
             ],
@@ -275,7 +336,7 @@ GoRouter _buildMobileRouter() {
             routes: [
               GoRoute(
                 path: '/bookings',
-                name: 'bookings',
+                name: 'mobile-bookings',
                 builder: (context, state) => const BookingsScreen(),
               ),
             ],
@@ -297,7 +358,7 @@ GoRouter _buildMobileRouter() {
             routes: [
               GoRoute(
                 path: '/profile',
-                name: 'profile',
+                name: 'mobile-profile',
                 builder: (context, state) => const ProfileScreen(),
               ),
             ],

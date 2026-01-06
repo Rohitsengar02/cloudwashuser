@@ -1,12 +1,13 @@
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/features/cart/data/addons_provider.dart';
 import 'package:cloud_user/features/cart/data/cart_provider.dart';
-import 'package:cloud_user/features/location/data/location_provider.dart';
 import 'package:cloud_user/features/web/presentation/web_layout.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_user/features/location/data/address_provider.dart';
+import 'package:cloud_user/features/orders/data/order_provider.dart';
 import 'dart:ui';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -18,17 +19,153 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   int _currentStep = 0; // 0: Details, 1: Payment
-  String _selectedPaymentMethod = 'UPI'; // UPI, Cards, Cash
+  String _selectedPaymentMethod = 'Cash'; // Cash After Service only
   bool _isLoading = false;
 
-  void _placeOrder() async {
+  @override
+  void initState() {
+    super.initState();
+    // Initialize default address when screen loads
+    Future.microtask(() async {
+      try {
+        final addresses = await ref.read(userAddressesProvider.future);
+        print('📍 Loaded ${addresses.length} addresses in checkout');
+
+        if (addresses.isNotEmpty) {
+          // Find default or use first
+          final defaultAddr = addresses.firstWhere(
+            (a) => a.isDefault,
+            orElse: () => addresses.first,
+          );
+          ref.read(selectedAddressProvider.notifier).select(defaultAddr);
+          print('✅ Auto-selected address: ${defaultAddr.label}');
+        } else {
+          print('⚠️ No addresses available');
+        }
+      } catch (e) {
+        print('❌ Error loading addresses: $e');
+      }
+    });
+  }
+
+  Future<void> _placeOrder() async {
+    // Validate address
+    final selectedAddress = ref.read(selectedAddressProvider);
+
+    print('🏠 selectedAddress: $selectedAddress');
+    print('🏠 selectedAddress == null: ${selectedAddress == null}');
+
+    if (selectedAddress == null) {
+      print('❌ No address selected, showing error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a delivery address')),
+      );
+      return;
+    }
+
+    print(
+      '✅ Address selected: ${selectedAddress.label} - ${selectedAddress.fullAddress}',
+    );
+
     setState(() => _isLoading = true);
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    ref.read(cartProvider.notifier).clearCart();
-    if (mounted) {
-      setState(() => _isLoading = false);
-      context.push('/thank-you');
+
+    try {
+      final cart = ref.read(cartProvider);
+      final total = ref.read(cartTotalProvider);
+
+      // Prepare services data
+      final services = cart.items.map((item) {
+        return {
+          'serviceId': item.service.id,
+          'name': item.service.title,
+          'categoryName': item.service.category,
+          'subCategoryName': item.service.subCategory ?? item.service.category,
+          'price': item.service.price,
+          'quantity': item.quantity,
+          'total': item.service.price * item.quantity,
+        };
+      }).toList();
+
+      // Calculate price summary
+      final subtotal = total;
+      final tax = subtotal * 0.05; // 5% tax
+      final deliveryCharge = 50.0;
+      final grandTotal = subtotal + tax + deliveryCharge;
+
+      // Prepare addons data
+      final addons = cart.selectedAddons.map((addon) {
+        return {'addonId': addon.id, 'name': addon.name, 'price': addon.price};
+      }).toList();
+
+      // Prepare order data
+      final orderData = {
+        'address': {
+          'label': selectedAddress.label,
+          'name': selectedAddress.name,
+          'phone': selectedAddress.phone,
+          'houseNumber': selectedAddress.houseNumber,
+          'street': selectedAddress.street,
+          'landmark': selectedAddress.landmark,
+          'city': selectedAddress.city,
+          'pincode': selectedAddress.pincode,
+          'fullAddress': selectedAddress.fullAddress,
+        },
+        'services': services,
+        'addons': addons,
+        'priceSummary': {
+          'subtotal': subtotal,
+          'tax': tax,
+          'deliveryCharge': deliveryCharge,
+          'discount': 0.0,
+          'total': grandTotal,
+        },
+        'paymentMethod': _selectedPaymentMethod,
+        'scheduledDate': DateTime.now()
+            .add(const Duration(days: 1))
+            .toIso8601String(),
+        'notes': 'Please handle with care',
+      };
+
+      print('📦 Creating order with data: $orderData');
+
+      // Create order
+      final result = await ref
+          .read(userOrdersProvider.notifier)
+          .createOrder(orderData);
+
+      print('✅ Order created: ${result['order']}');
+
+      final otp = result['order']['otp'];
+      final orderNumber = result['order']['orderNumber'];
+
+      // Clear cart
+      ref.read(cartProvider.notifier).clearCart();
+
+      if (mounted) {
+        // Show success message with OTP
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Order #$orderNumber placed! Your OTP is: $otp'),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate to thank you page or order tracking
+        context.go('/');
+      }
+    } catch (e) {
+      print('❌ Order creation error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to place order: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -137,14 +274,43 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         const SizedBox(width: 60),
         // Right Column: Summary Card
         Expanded(
-          // This is okay now because it fills remaining space horizontally
-          child: Column(
-            children: [
-              const SizedBox(height: 42), // Align with title
-              _buildPricingCard(cartState, total, isDesktop: true),
-              const SizedBox(height: 24),
-              _buildDesktopAction(total),
-            ],
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF262626),
+              borderRadius: BorderRadius.circular(24),
+              image: const DecorationImage(
+                image: NetworkImage(
+                  'https://images.weserv.nl/?url=https://i.pinimg.com/736x/ab/66/8c/ab668c335e6b33a03695b169df175f73.jpg',
+                ),
+                fit: BoxFit.cover,
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.9),
+                    Colors.black.withOpacity(0.4),
+                  ],
+                ),
+              ),
+              child: Column(
+                children: [
+                  _buildPricingCard(
+                    cartState,
+                    total,
+                    isDesktop: true,
+                    isDark: true,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildDesktopAction(total),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -258,7 +424,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     bool isDesktop = false,
     Key? key,
   }) {
-    final location = ref.watch(userLocationProvider);
+    final selectedAddress = ref.watch(selectedAddressProvider);
     final addonsAsync = ref.watch(addonsProvider);
 
     return Column(
@@ -300,7 +466,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      location?.address ?? 'No address selected',
+                      selectedAddress?.label ?? 'No address selected',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: isDesktop ? 18 : 15,
@@ -308,17 +474,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Your service will be delivered here',
+                      selectedAddress?.fullAddress ??
+                          'Please add a service address',
                       style: TextStyle(
                         color: Colors.grey,
                         fontSize: isDesktop ? 14 : 12,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               TextButton(
-                onPressed: () => context.push('/add-address'),
+                onPressed: () => _showAddressSelection(context),
                 child: const Text(
                   'Change',
                   style: TextStyle(fontWeight: FontWeight.bold),
@@ -350,22 +519,58 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       key: key,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Show selected address confirmation
+        Consumer(
+          builder: (context, ref, _) {
+            final address = ref.watch(selectedAddressProvider);
+            if (address == null) return const SizedBox.shrink();
+            return Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, color: Colors.green),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Delivering to ${address.label}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        Text(
+                          address.fullAddress,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => _currentStep = 0),
+                    child: const Text('Change'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
         _sectionTitle('Select Payment Method', isDesktop: isDesktop),
         const SizedBox(height: 16),
-        _paymentMethodItem(
-          'UPI',
-          'Pay via Google Pay, PhonePe, or Paytm',
-          Icons.account_balance_wallet,
-          'UPI',
-          isDesktop: isDesktop,
-        ),
-        _paymentMethodItem(
-          'Credit/Debit Cards',
-          'Visa, Mastercard, RuPay',
-          Icons.credit_card,
-          'Cards',
-          isDesktop: isDesktop,
-        ),
         _paymentMethodItem(
           'Cash After Service',
           'Pay once work is done',
@@ -480,32 +685,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildPricingCard(cartState, double total, {bool isDesktop = false}) {
+  Widget _buildPricingCard(
+    cartState,
+    double total, {
+    bool isDesktop = false,
+    bool isDark = false,
+  }) {
+    final textColor = isDark ? Colors.white : Colors.black;
+    final secondaryColor = isDark ? Colors.white70 : Colors.grey;
+
     return Container(
       padding: EdgeInsets.all(isDesktop ? 32 : 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: isDark ? Border.all(color: Colors.white12) : null,
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         children: [
           ...cartState.items.map(
-            (item) => _itemRow(item.service.title, '₹${item.totalPrice}'),
+            (item) => _itemRow(
+              item.service.title,
+              '₹${item.totalPrice}',
+              color: textColor,
+              secondaryColor: secondaryColor,
+            ),
           ),
           ...cartState.selectedAddons.map(
-            (addon) => _itemRow(addon.name, '₹${addon.price}'),
+            (addon) => _itemRow(
+              addon.name,
+              '₹${addon.price}',
+              color: textColor,
+              secondaryColor: secondaryColor,
+            ),
           ),
-          const Divider(height: 48),
-          _itemRow('Subtotal', '₹${total.toStringAsFixed(0)}'),
-          _itemRow('GST (18%)', '₹${(total * 0.18).toStringAsFixed(0)}'),
-          const Divider(height: 48),
+          Divider(height: 48, color: isDark ? Colors.white12 : null),
+          _itemRow(
+            'Subtotal',
+            '₹${total.toStringAsFixed(0)}',
+            color: textColor,
+            secondaryColor: secondaryColor,
+          ),
+          _itemRow(
+            'GST (18%)',
+            '₹${(total * 0.18).toStringAsFixed(0)}',
+            color: textColor,
+            secondaryColor: secondaryColor,
+          ),
+          Divider(height: 48, color: isDark ? Colors.white12 : null),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -514,6 +750,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: isDesktop ? 20 : 18,
+                  color: textColor,
                 ),
               ),
               Text(
@@ -521,7 +758,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: isDesktop ? 28 : 22,
-                  color: AppTheme.primary,
+                  color: isDark ? const Color(0xFFFFCC00) : AppTheme.primary,
                 ),
               ),
             ],
@@ -531,16 +768,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _itemRow(String label, String value) {
+  Widget _itemRow(
+    String label,
+    String value, {
+    Color? color,
+    Color? secondaryColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(
+            label,
+            style: TextStyle(
+              color: secondaryColor ?? Colors.grey,
+              fontSize: 14,
+            ),
+          ),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: color ?? Colors.black,
+            ),
           ),
         ],
       ),
@@ -712,6 +964,178 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showAddressSelection(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, child) {
+          final addressesAsync = ref.watch(userAddressesProvider);
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Select Address',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: addressesAsync.when(
+                    data: (addresses) => addresses.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_off_outlined,
+                                  size: 64,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No addresses saved yet',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: addresses.length,
+                            separatorBuilder: (context, index) =>
+                                const SizedBox(height: 16),
+                            itemBuilder: (context, index) {
+                              final address = addresses[index];
+                              final isSelected =
+                                  ref.watch(selectedAddressProvider)?.id ==
+                                  address.id;
+
+                              return InkWell(
+                                onTap: () {
+                                  ref
+                                      .read(selectedAddressProvider.notifier)
+                                      .select(address);
+                                  Navigator.pop(context);
+                                },
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? AppTheme.primary
+                                          : Colors.grey.shade200,
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    color: isSelected
+                                        ? AppTheme.primary.withOpacity(0.02)
+                                        : Colors.white,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        address.label == 'Home'
+                                            ? Icons.home_outlined
+                                            : address.label == 'Work'
+                                            ? Icons.work_outline
+                                            : Icons.location_on_outlined,
+                                        color: isSelected
+                                            ? AppTheme.primary
+                                            : Colors.grey,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              address.label,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: isSelected
+                                                    ? AppTheme.primary
+                                                    : Colors.black,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              address.fullAddress,
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: AppTheme.primary,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (err, stack) => Center(child: Text('Error: $err')),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      context.push('/add-address');
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add New Address'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primary,
+                      side: BorderSide(color: AppTheme.primary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

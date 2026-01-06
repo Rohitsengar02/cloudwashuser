@@ -77,39 +77,75 @@ class _CartScreenState extends ConsumerState<CartScreen>
               // --- RIGHT SIDE SIDEBAR (30%) ---
               Expanded(
                 flex: 3,
-                child: Container(
-                  color: const Color(0xFF262626),
-                  child: Column(
-                    children: [
-                      _buildStepperIndicator(),
-                      Expanded(
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          child: Container(
-                            key: ValueKey(_currentStep),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 60,
-                            ),
-                            child: _currentStep == 0
-                                ? SingleChildScrollView(
-                                    child: _buildSummaryContent(
-                                      total,
-                                      cartItems.length +
-                                          cartState.selectedAddons.length,
-                                      totalDurationMinutes,
-                                    ),
-                                  )
-                                : _buildBookingDetailsContent(
-                                    total,
-                                    totalDurationMinutes,
-                                  ),
-                          ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Background Image
+                    Image.network(
+                      'https://images.weserv.nl/?url=https://i.pinimg.com/736x/ab/66/8c/ab668c335e6b33a03695b169df175f73.jpg',
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(color: const Color(0xFF1A1A1A)),
+                    ),
+                    // Gradient Overlay
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.8),
+                            Colors.black.withOpacity(0.2),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.4, 0.7],
                         ),
                       ),
-                      _buildStickyCheckoutButton(),
-                    ],
-                  ),
+                    ),
+                    // Content
+                    Column(
+                      children: [
+                        _buildStepperIndicator(),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Container(
+                              key: ValueKey(_currentStep),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 40,
+                                vertical: 60,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.0),
+                                    Colors.black.withOpacity(0.4),
+                                    Colors.black.withOpacity(0.6),
+                                  ],
+                                ),
+                              ),
+                              child: _currentStep == 0
+                                  ? SingleChildScrollView(
+                                      child: _buildSummaryContent(
+                                        total,
+                                        cartItems.length +
+                                            cartState.selectedAddons.length,
+                                        totalDurationMinutes,
+                                      ),
+                                    )
+                                  : _buildBookingDetailsContent(
+                                      total,
+                                      totalDurationMinutes,
+                                    ),
+                            ),
+                          ),
+                        ),
+                        _buildStickyCheckoutButton(),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],

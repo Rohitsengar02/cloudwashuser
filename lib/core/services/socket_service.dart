@@ -6,9 +6,11 @@ final socketServiceProvider = Provider((ref) => SocketService());
 
 class SocketService {
   IO.Socket? _socket;
+  String? _currentUserId;
 
-  // Initialized in main or wherever
   void init() {
+    if (_socket != null) return;
+
     String url = AppConfig.baseUrl;
     if (url.endsWith('/api/')) {
       url = url.substring(0, url.length - 5);
@@ -16,35 +18,41 @@ class SocketService {
       url = url.substring(0, url.length - 4);
     }
 
+    print('🔌 Connecting to Socket: $url');
+
     _socket = IO.io(
       url,
       IO.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(['websocket', 'polling']) // Support fallback
           .enableAutoConnect()
           .build(),
     );
 
     _socket?.onConnect((_) {
-      print('Socket Connected: ${_socket?.id}');
+      print('✅ Socket Connected: ${_socket?.id}');
+      if (_currentUserId != null) {
+        _socket!.emit('join', _currentUserId);
+        print('👤 Re-joined room: $_currentUserId');
+      }
     });
 
-    _socket?.onConnectError((data) => print('Socket Error: $data'));
+    _socket?.onConnectError((data) => print('❌ Socket Connect Error: $data'));
+    _socket?.onDisconnect((data) => print('🔌 Socket Disconnected: $data'));
+    _socket?.onError((data) => print('⚠️ Socket Error: $data'));
   }
 
   void joinRoom(String userId) {
-    if (_socket != null) {
+    _currentUserId = userId;
+    if (_socket != null && _socket!.connected) {
       _socket!.emit('join', userId);
+      print('👤 Joined room: $userId');
     }
-
-    // Also re-emit on reconnect
-    _socket?.onConnect((_) {
-      _socket!.emit('join', userId);
-    });
   }
 
   void onNotification(Function(Map<String, dynamic>) callback) {
+    _socket?.off('notification'); // Prevent duplicate listeners
     _socket?.on('notification', (data) {
-      print('Received notification: $data');
+      print('📩 Received socket notification: $data');
       if (data is Map) {
         callback(Map<String, dynamic>.from(data));
       }
@@ -52,6 +60,7 @@ class SocketService {
   }
 
   void dispose() {
-    _socket?.disconnect();
+    _socket?.dispose();
+    _socket = null;
   }
 }

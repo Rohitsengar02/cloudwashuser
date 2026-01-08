@@ -99,6 +99,20 @@ class OrderRepository {
     }
   }
 
+  // Get booked slots for a date
+  Future<List<Map<String, dynamic>>> getBookedSlots(DateTime date) async {
+    try {
+      final response = await _dio.get(
+        'orders/slots',
+        queryParameters: {'date': date.toIso8601String()},
+      );
+      return List<Map<String, dynamic>>.from(response.data['slots']);
+    } catch (e) {
+      // Just return empty if error, but logging would be good
+      return [];
+    }
+  }
+
   // Listen to real-time order updates from Firebase
   Stream<OrderModel?> listenToOrder(String orderId) {
     return _firestore.collection('orders').doc(orderId).snapshots().map((

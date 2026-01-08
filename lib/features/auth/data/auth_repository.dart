@@ -1,4 +1,5 @@
 import 'package:cloud_user/core/network/api_client.dart';
+
 import 'package:cloud_user/core/storage/token_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dio/dio.dart';
@@ -21,14 +22,11 @@ class AuthRepository {
   final TokenStorage _tokenStorage;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId:
-        '864806051234-ioslqq625a88mpejsj1chsn0bm4cunrf.apps.googleusercontent.com',
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   AuthRepository(this._dio, this._tokenStorage);
 
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<GoogleSignInResult?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
@@ -52,8 +50,25 @@ class AuthRepository {
 
           if (response.data['token'] != null) {
             await _tokenStorage.saveToken(response.data['token']);
+
+            // Sync MongoDB ID to Firestore
+            await _firestore
+                .collection('users')
+                .doc(userCredential.user!.uid)
+                .set({
+                  '_id': response.data['_id'],
+                  'name': response.data['name'],
+                  'email': response.data['email'],
+                  'phone': response.data['phone'],
+                  'profileImage': response.data['profileImage'],
+                }, SetOptions(merge: true));
+
             print(
-              '✅ Google Sign-In: Token saved for ${userCredential.user!.email}',
+              '✅ Google Sign-In: Token and Profile synced for ${userCredential.user!.email}',
+            );
+            return GoogleSignInResult(
+              userCredential: userCredential,
+              isAlreadyRegistered: true,
             );
           }
         } catch (e) {
@@ -61,10 +76,14 @@ class AuthRepository {
             '⚠️ Google Sign-In: User not registered in backend. Please complete registration.',
           );
           // User exists in Firebase but not in MongoDB - they need to complete registration
+          return GoogleSignInResult(
+            userCredential: userCredential,
+            isAlreadyRegistered: false,
+          );
         }
       }
 
-      return userCredential;
+      return GoogleSignInResult(userCredential: userCredential);
     } catch (e) {
       print('❌ Google Sign-In Error: $e');
       rethrow;
@@ -106,17 +125,15 @@ class AuthRepository {
         await _tokenStorage.saveToken(response.data['token']);
       }
 
-      // 3. Save returning Cloudinary URL back to Firebase
+      // 3. Save returning data back to Firebase
+      final mongoId = response.data['_id'];
       final cloudinaryUrl = response.data['profileImage'];
-      if (cloudinaryUrl != null) {
-        await _firestore.collection('users').doc(uid).set({
-          'name': name,
-          'email': email,
-          'phone': phone,
-          'profileImage': cloudinaryUrl,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
+
+      await _firestore.collection('users').doc(uid).set({
+        '_id': mongoId,
+        if (cloudinaryUrl != null) 'profileImage': cloudinaryUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       rethrow;
     }
@@ -140,9 +157,18 @@ class AuthRepository {
 
       if (response.data['token'] != null) {
         await _tokenStorage.saveToken(response.data['token']);
-        print('✅ Token saved successfully');
-      } else {
-        print('⚠️ No token found in login response');
+
+        // Sync MongoDB ID to Firestore
+        final firebaseUser = _auth.currentUser;
+        if (firebaseUser != null) {
+          await _firestore.collection('users').doc(firebaseUser.uid).set({
+            '_id': response.data['_id'],
+            'name': response.data['name'],
+            'email': response.data['email'],
+            'phone': response.data['phone'],
+            'profileImage': response.data['profileImage'],
+          }, SetOptions(merge: true));
+        }
       }
 
       return response.data;
@@ -228,4 +254,11 @@ class AuthRepository {
     await _auth.signOut();
     await _googleSignIn.signOut();
   }
+}
+
+class GoogleSignInResult {
+  final UserCredential? userCredential;
+  final bool isAlreadyRegistered;
+
+  GoogleSignInResult({this.userCredential, this.isAlreadyRegistered = false});
 }

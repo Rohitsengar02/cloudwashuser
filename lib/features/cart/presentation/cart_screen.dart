@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math' as math;
+import 'package:cloud_user/features/orders/data/order_provider.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -268,19 +269,96 @@ class _CartScreenState extends ConsumerState<CartScreen>
                         style: TextStyle(color: Colors.grey, fontSize: 13),
                       ),
                       const SizedBox(height: 30),
-                      Wrap(
-                        spacing: 15,
-                        runSpacing: 15,
-                        children: [
-                          _buildModernTimeChip('08 - 09 AM'),
-                          _buildModernTimeChip('10 - 11 AM'),
-                          _buildModernTimeChip('11 - 12 AM'),
-                          _buildModernTimeChip('02 - 03 PM'),
-                          _buildModernTimeChip('04 - 05 PM'),
-                          _buildModernTimeChip('05 - 06 PM'),
-                          _buildModernTimeChip('06 - 07 PM'),
-                          _buildModernTimeChip('07 - 08 PM'),
-                        ],
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final bookedSlotsAsync = ref.watch(
+                            bookedSlotsProvider(_selectedDate),
+                          );
+                          return bookedSlotsAsync.when(
+                            data: (bookedSlots) {
+                              final allSlots = [
+                                '08 - 09 AM',
+                                '09 - 10 AM',
+                                '10 - 11 AM',
+                                '11 - 12 AM',
+                                '12 - 01 PM',
+                                '01 - 02 PM',
+                                '02 - 03 PM',
+                                '03 - 04 PM',
+                                '04 - 05 PM',
+                                '05 - 06 PM',
+                                '06 - 07 PM',
+                                '07 - 08 PM',
+                                '08 - 09 PM',
+                              ];
+
+                              final now = DateTime.now();
+                              final isToday =
+                                  _selectedDate.year == now.year &&
+                                  _selectedDate.month == now.month &&
+                                  _selectedDate.day == now.day;
+
+                              final visibleSlots = allSlots.where((time) {
+                                if (!isToday) return true;
+                                final hourPart = time.split(' ')[0];
+                                int hour = int.parse(hourPart);
+                                if (time.contains('PM') && hour != 12) {
+                                  hour += 12;
+                                }
+                                if (time.contains('AM') && hour == 12) hour = 0;
+                                return hour > now.hour;
+                              }).toList();
+
+                              if (visibleSlots.isEmpty) {
+                                return const Text(
+                                  'No more slots available for today.',
+                                  style: TextStyle(color: Colors.grey),
+                                );
+                              }
+
+                              return Wrap(
+                                spacing: 15,
+                                runSpacing: 15,
+                                children: visibleSlots.map((time) {
+                                  // Check if booked
+                                  final isBooked = bookedSlots.any((slot) {
+                                    final slotTime = DateTime.parse(
+                                      slot['time'],
+                                    ).toLocal();
+
+                                    final rangeStartHourPart = time.split(
+                                      ' ',
+                                    )[0];
+                                    int rangeStartHour = int.parse(
+                                      rangeStartHourPart,
+                                    );
+                                    if (time.contains('PM') &&
+                                        rangeStartHour != 12) {
+                                      rangeStartHour += 12;
+                                    }
+                                    if (time.contains('AM') &&
+                                        rangeStartHour == 12) {
+                                      rangeStartHour = 0;
+                                    }
+
+                                    return slotTime.year ==
+                                            _selectedDate.year &&
+                                        slotTime.month == _selectedDate.month &&
+                                        slotTime.day == _selectedDate.day &&
+                                        slotTime.hour == rangeStartHour;
+                                  });
+
+                                  return _buildModernTimeChip(
+                                    time,
+                                    isBooked: isBooked,
+                                  );
+                                }).toList(),
+                              );
+                            },
+                            loading: () => const CircularProgressIndicator(),
+                            error: (err, _) => Text('Error: $err'),
+                          );
+                        },
                       ),
                       const SizedBox(height: 20),
                       _buildSelectionTip(),
@@ -564,16 +642,82 @@ class _CartScreenState extends ConsumerState<CartScreen>
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _buildModernTimeChip('08-09 AM'),
-            _buildModernTimeChip('10-11 AM'),
-            _buildModernTimeChip('11-12 AM'),
-            _buildModernTimeChip('04-05 PM'),
-            _buildModernTimeChip('06-07 PM'),
-          ],
+        Consumer(
+          builder: (context, ref, _) {
+            final bookedSlotsAsync = ref.watch(
+              bookedSlotsProvider(_selectedDate),
+            );
+            return bookedSlotsAsync.when(
+              data: (bookedSlots) {
+                final allSlots = [
+                  '08 - 09 AM',
+                  '09 - 10 AM',
+                  '10 - 11 AM',
+                  '11 - 12 AM',
+                  '12 - 01 PM',
+                  '01 - 02 PM',
+                  '02 - 03 PM',
+                  '03 - 04 PM',
+                  '04 - 05 PM',
+                  '05 - 06 PM',
+                  '06 - 07 PM',
+                  '07 - 08 PM',
+                  '08 - 09 PM',
+                ];
+
+                final now = DateTime.now();
+                final isToday =
+                    _selectedDate.year == now.year &&
+                    _selectedDate.month == now.month &&
+                    _selectedDate.day == now.day;
+
+                final visibleSlots = allSlots.where((time) {
+                  if (!isToday) return true;
+                  final hourPart = time.split(' ')[0];
+                  int hour = int.parse(hourPart);
+                  if (time.contains('PM') && hour != 12) {
+                    hour += 12;
+                  }
+                  if (time.contains('AM') && hour == 12) hour = 0;
+                  return hour > now.hour;
+                }).toList();
+
+                if (visibleSlots.isEmpty) {
+                  return const Text(
+                    'No more slots available for today.',
+                    style: TextStyle(color: Colors.grey),
+                  );
+                }
+
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: visibleSlots.map((time) {
+                    final rangeStartHourPart = time.split(' ')[0];
+                    int rangeStartHour = int.parse(rangeStartHourPart);
+                    if (time.contains('PM') && rangeStartHour != 12) {
+                      rangeStartHour += 12;
+                    }
+                    if (time.contains('AM') && rangeStartHour == 12) {
+                      rangeStartHour = 0;
+                    }
+
+                    final isBooked = bookedSlots.any((slot) {
+                      final slotTime = DateTime.parse(slot['time']).toLocal();
+                      return slotTime.year == _selectedDate.year &&
+                          slotTime.month == _selectedDate.month &&
+                          slotTime.day == _selectedDate.day &&
+                          slotTime.hour == rangeStartHour;
+                    });
+
+                    return _buildModernTimeChip(time, isBooked: isBooked);
+                  }).toList(),
+                );
+              },
+              loading: () => const CircularProgressIndicator(),
+              error: (err, _) => Text('Error: $err'),
+            );
+          },
         ),
         const SizedBox(height: 30),
         _buildBookingDetailsContent(total, duration, isDark: false),
@@ -839,20 +983,44 @@ class _CartScreenState extends ConsumerState<CartScreen>
     );
   }
 
-  Widget _buildModernTimeChip(String slot) {
+  Widget _buildModernTimeChip(String slot, {bool isBooked = false}) {
     final isSelected = _selectedTimeSlot == slot;
     return InkWell(
-      onTap: () => setState(() => _selectedTimeSlot = slot),
+      onTap: isBooked ? null : () => setState(() => _selectedTimeSlot = slot),
       borderRadius: BorderRadius.circular(15),
-      child: _AnimatedGradientBox(
-        isSelected: isSelected,
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isBooked
+              ? Colors.grey.withOpacity(0.1)
+              : isSelected
+              ? const Color(0xFFFFCC00)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFFFCC00) : Colors.grey.shade200,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFFCC00).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
         child: Text(
           slot,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
+            color: isBooked
+                ? Colors.grey
+                : isSelected
+                ? Colors.black
+                : Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 13,
+            decoration: isBooked ? TextDecoration.lineThrough : null,
           ),
         ),
       ),

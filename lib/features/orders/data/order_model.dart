@@ -102,6 +102,48 @@ class OrderModel {
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
+
+  OrderModel copyWith({
+    String? id,
+    String? orderNumber,
+    String? otp,
+    UserInfo? user,
+    AddressInfo? address,
+    List<ServiceItem>? services,
+    List<AddonItem>? addons,
+    PriceSummary? priceSummary,
+    String? paymentMethod,
+    String? paymentStatus,
+    String? status,
+    DateTime? scheduledDate,
+    DateTime? completedAt,
+    DateTime? cancelledAt,
+    String? cancellationReason,
+    String? notes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return OrderModel(
+      id: id ?? this.id,
+      orderNumber: orderNumber ?? this.orderNumber,
+      otp: otp ?? this.otp,
+      user: user ?? this.user,
+      address: address ?? this.address,
+      services: services ?? this.services,
+      addons: addons ?? this.addons,
+      priceSummary: priceSummary ?? this.priceSummary,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      status: status ?? this.status,
+      scheduledDate: scheduledDate ?? this.scheduledDate,
+      completedAt: completedAt ?? this.completedAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 class UserInfo {

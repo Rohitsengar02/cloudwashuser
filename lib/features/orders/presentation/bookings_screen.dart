@@ -17,8 +17,8 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use Firebase real-time stream for instant updates when orders are cancelled
-    final ordersStream = ref.watch(userOrdersRealtimeProvider);
+    // Use real-time provider to get live updates from Firebase
+    final ordersAsync = ref.watch(userOrdersRealtimeProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
@@ -39,7 +39,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
         children: [
           _buildFilterChips(),
           Expanded(
-            child: ordersStream.when(
+            child: ordersAsync.when(
               data: (orders) {
                 if (orders.isEmpty) {
                   return _buildEmptyState();
@@ -80,8 +80,7 @@ class _BookingsScreenState extends ConsumerState<BookingsScreen> {
                     Text('Error loading bookings: $error'),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () =>
-                          ref.invalidate(userOrdersRealtimeProvider),
+                      onPressed: () => ref.invalidate(userOrdersProvider),
                       child: const Text('Retry'),
                     ),
                   ],

@@ -2,15 +2,16 @@ import 'package:cloud_user/features/auth/presentation/providers/auth_state_provi
 import 'package:cloud_user/features/profile/presentation/providers/user_provider.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/features/auth/data/auth_repository.dart';
-import 'package:cloud_user/features/web/presentation/web_layout.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
+
+import 'package:cloud_user/core/widgets/animated_background.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -38,34 +39,51 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _showConfirmPassword = false;
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70,
+      );
 
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _base64Image = 'data:image/png;base64,${base64Encode(bytes)}';
-        _profileImageUrl = null;
-      });
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _base64Image = 'data:image/png;base64,${base64Encode(bytes)}';
+          _profileImageUrl = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
     }
   }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final credential = await ref
-          .read(authRepositoryProvider)
-          .signInWithGoogle();
-      if (credential != null && credential.user != null) {
-        setState(() {
-          _firebaseUser = credential.user;
-          _nameController.text = _firebaseUser!.displayName ?? '';
-          _profileImageUrl = _firebaseUser!.photoURL;
-          _currentStep = 2;
-        });
+      final result = await ref.read(authRepositoryProvider).signInWithGoogle();
+
+      if (result != null && result.userCredential?.user != null) {
+        if (result.isAlreadyRegistered) {
+          // User already exists, redirect to Home
+          if (mounted) {
+            ref.invalidate(authStateProvider);
+            ref.invalidate(userProfileProvider);
+            context.go('/');
+          }
+        } else {
+          // New user, go to Step 2
+          setState(() {
+            _firebaseUser = result.userCredential!.user;
+            _nameController.text = _firebaseUser!.displayName ?? '';
+            _profileImageUrl = _firebaseUser!.photoURL;
+            _currentStep = 2;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -131,69 +149,105 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         constraints: BoxConstraints(
           maxWidth: isDesktop ? 500 : double.infinity,
         ),
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildStepIndicator(),
-            const SizedBox(height: 48),
-            _buildStepContent(),
+            _buildStepIndicator()
+                .animate()
+                .fadeIn(duration: 600.ms)
+                .slideY(begin: -0.2, end: 0),
+            const SizedBox(height: 40),
+            _buildStepContent()
+                .animate(key: ValueKey(_currentStep))
+                .fadeIn(duration: 400.ms)
+                .scale(begin: const Offset(0.95, 0.95)),
           ],
         ),
       ),
     );
 
-    if (kIsWeb) {
-      return WebLayout(child: content);
-    }
-
+    // For both Web and Mobile, we use the same focused layout
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(child: SingleChildScrollView(child: content)),
+      body: AnimatedBackground(
+        child: SafeArea(
+          child: Center(child: SingleChildScrollView(child: content)),
+        ),
+      ),
     );
   }
 
   Widget _buildStepIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _stepCircle(1, 'Identify'),
-        _stepLine(1),
-        _stepCircle(2, 'Profile'),
-        _stepLine(2),
-        _stepCircle(3, 'Security'),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _stepCircle(1, 'Identify'),
+          _stepLine(1),
+          _stepCircle(2, 'Profile'),
+          _stepLine(2),
+          _stepCircle(3, 'Security'),
+        ],
+      ),
     );
   }
 
   Widget _stepCircle(int step, String label) {
     bool isActive = _currentStep >= step;
+    bool isDone = _currentStep > step;
+
     return Column(
       children: [
-        Container(
-          width: 40,
-          height: 40,
+        AnimatedContainer(
+          duration: 300.ms,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: isActive ? AppTheme.primary : Colors.grey.shade200,
+            color: isActive ? AppTheme.primary : Colors.grey.shade100,
             shape: BoxShape.circle,
+            boxShadow: isActive
+                ? [
+                    BoxShadow(
+                      color: AppTheme.primary.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [],
           ),
           child: Center(
-            child: Text(
-              '$step',
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: isDone
+                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                : Text(
+                    '$step',
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.grey.shade400,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           label,
           style: GoogleFonts.inter(
-            fontSize: 12,
-            color: isActive ? AppTheme.primary : Colors.grey,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            fontSize: 11,
+            color: isActive ? AppTheme.primary : Colors.grey.shade400,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
       ],
@@ -204,9 +258,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     bool isActive = _currentStep > step;
     return Container(
       width: 40,
-      height: 2,
-      margin: const EdgeInsets.only(left: 8, right: 8, bottom: 20),
-      color: isActive ? AppTheme.primary : Colors.grey.shade200,
+      height: 3,
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 20),
+      decoration: BoxDecoration(
+        color: isActive ? AppTheme.primary : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(2),
+      ),
     );
   }
 
@@ -226,6 +283,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget _buildStep1() {
     return Column(
       children: [
+        Hero(
+          tag: 'auth_icon',
+          child: Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.dry_cleaning, size: 50, color: AppTheme.primary),
+          ),
+        ),
+        const SizedBox(height: 32),
         Text(
           'Join Cloud Wash',
           style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold),
@@ -239,7 +309,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         const SizedBox(height: 48),
         SizedBox(
           width: double.infinity,
-          height: 56,
+          height: 60,
           child: OutlinedButton.icon(
             onPressed: _isLoading ? null : _handleGoogleSignIn,
             icon: _isLoading
@@ -251,11 +321,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 : Image.network(
                     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
                     height: 24,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.g_mobiledata,
-                      color: Colors.blue,
-                      size: 28,
-                    ),
                   ),
             label: Text(
               'Sign up with Google',
@@ -266,10 +331,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ),
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.grey.shade300),
+              side: BorderSide(color: Colors.grey.shade200),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
+              backgroundColor: Colors.white,
             ),
           ),
         ),
@@ -277,7 +343,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('Already have an account?'),
+            Text(
+              'Already have an account?',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
             TextButton(
               onPressed: () => context.go('/login'),
               child: const Text(
@@ -297,42 +366,61 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         Stack(
           alignment: Alignment.bottomRight,
           children: [
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.grey.shade100,
-              backgroundImage: _base64Image != null
-                  ? MemoryImage(base64Decode(_base64Image!.split(',').last))
-                        as ImageProvider
-                  : (_profileImageUrl != null
-                        ? NetworkImage(_profileImageUrl!)
-                        : null),
-              child: (_base64Image == null && _profileImageUrl == null)
-                  ? const Icon(Icons.person, size: 50, color: Colors.grey)
-                  : null,
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppTheme.primary, width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 54,
+                backgroundColor: Colors.grey.shade100,
+                backgroundImage: _base64Image != null
+                    ? MemoryImage(base64Decode(_base64Image!.split(',').last))
+                          as ImageProvider
+                    : (_profileImageUrl != null
+                          ? NetworkImage(_profileImageUrl!)
+                          : null),
+                child: (_base64Image == null && _profileImageUrl == null)
+                    ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                    : null,
+              ),
             ),
             InkWell(
               onTap: _pickImage,
               child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
                   color: AppTheme.primary,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primary.withOpacity(0.4),
+                      blurRadius: 10,
+                    ),
+                  ],
                 ),
                 child: const Icon(
                   Icons.camera_alt,
                   color: Colors.white,
-                  size: 20,
+                  size: 18,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Text(
           'Setup Profile',
-          style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold),
+          style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 8),
+        Text(
+          'Tell us about yourself to personalize your experience',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+        ),
+        const SizedBox(height: 40),
         _buildTextField('Full Name', _nameController, Icons.person_outline),
         const SizedBox(height: 20),
         _buildTextField(
@@ -341,7 +429,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           Icons.email_outlined,
           enabled: false,
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 48),
         _primaryButton('Continue', () => setState(() => _currentStep = 3)),
       ],
     );
@@ -352,7 +440,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       children: [
         Text(
           'Security & Contact',
-          style: GoogleFonts.poppins(fontSize: 24, fontWeight: FontWeight.bold),
+          style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 32),
         _buildTextField(
@@ -380,7 +468,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           onSuffixIconTap: () =>
               setState(() => _showConfirmPassword = !_showConfirmPassword),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 48),
         _primaryButton('Register Now', _handleCompleteRegistration),
       ],
     );
@@ -402,39 +490,56 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-            color: Colors.grey.shade700,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            color: Colors.black87,
+            letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TextField(
           controller: controller,
           enabled: enabled,
           obscureText: obscureText,
           keyboardType: keyboardType,
-          style: GoogleFonts.inter(fontWeight: FontWeight.w500),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            color: enabled ? Colors.black87 : Colors.grey,
+          ),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: AppTheme.primary, size: 20),
+            prefixIcon: Icon(
+              icon,
+              color: enabled ? AppTheme.primary : Colors.grey,
+              size: 20,
+            ),
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
                       obscureText ? Icons.visibility_off : Icons.visibility,
                       color: Colors.grey,
-                      size: 20,
+                      size: 18,
                     ),
                     onPressed: onSuffixIconTap,
                   )
                 : null,
             filled: true,
             fillColor: enabled ? Colors.grey.shade50 : Colors.grey.shade100,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 20,
+              horizontal: 16,
+            ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.grey.shade100),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.grey.shade100),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: AppTheme.primary, width: 1.5),
             ),
           ),
         ),
@@ -445,16 +550,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget _primaryButton(String label, VoidCallback onTap) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: 60,
       child: ElevatedButton(
         onPressed: _isLoading ? null : onTap,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primary,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
-          elevation: 0,
+          elevation: 8,
+          shadowColor: AppTheme.primary.withOpacity(0.4),
         ),
         child: _isLoading
             ? const SizedBox(
@@ -470,6 +576,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
                 ),
               ),
       ),

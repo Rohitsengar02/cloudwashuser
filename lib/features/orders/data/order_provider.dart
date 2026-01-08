@@ -1,8 +1,17 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_user/features/orders/data/order_model.dart';
 import 'package:cloud_user/features/orders/data/order_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'order_provider.g.dart';
+
+// ... (keep existing classes)
+
+// Booked slots for date
+final bookedSlotsProvider = FutureProvider.autoDispose
+    .family<List<Map<String, dynamic>>, DateTime>((ref, date) {
+      return ref.watch(orderRepositoryProvider).getBookedSlots(date);
+    });
 
 // User's orders from MongoDB
 @riverpod

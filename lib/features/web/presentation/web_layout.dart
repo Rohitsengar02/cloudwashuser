@@ -2,6 +2,8 @@ import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/features/web/presentation/widgets/web_footer.dart';
 import 'package:cloud_user/features/web/presentation/widgets/web_navbar.dart';
 import 'package:cloud_user/features/notifications/presentation/providers/notification_provider.dart';
+import 'package:cloud_user/features/orders/data/order_provider.dart';
+import 'package:cloud_user/features/orders/data/order_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,20 +13,74 @@ class WebLayout extends ConsumerWidget {
   final Widget child;
   final Widget? endDrawer;
   final GlobalKey<ScaffoldState>? scaffoldKey;
+  final Widget? floatingBottomBar;
 
   const WebLayout({
     super.key,
     required this.child,
     this.endDrawer,
     this.scaffoldKey,
+    this.floatingBottomBar,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Listen for real-time notifications
-    ref.listen(notificationsProvider, (previous, next) {
-      next.whenData((currentList) {
-        previous?.whenData((prevList) {
+    // Listen for real-time order status updates from Firebase
+    ref.listen(userOrdersRealtimeProvider, (previous, next) {
+      if (previous != null &&
+          previous is AsyncData<List<OrderModel>> &&
+          next is AsyncData<List<OrderModel>>) {
+        final previousOrders = previous.value;
+        final currentOrders = next.value;
+
+        for (var order in currentOrders) {
+          final oldOrder = previousOrders.firstWhere(
+            (o) => o.id == order.id,
+            orElse: () =>
+                order.copyWith(status: 'NEW'), // Marker for new orders
+          );
+
+          if (oldOrder.status != 'NEW' && oldOrder.status != order.status) {
+            // Status changed! Show notification
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(20),
+                width: MediaQuery.of(context).size.width > 600 ? 400 : null,
+                backgroundColor: const Color(0xFF1A73E8),
+                content: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.white),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Booking #${order.orderNumber} status updated to ${order.status.toUpperCase()}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      }
+    });
+
+    // Listen for real-time notifications (Socket based)
+    ref.listen<AsyncValue<List<Map<String, dynamic>>>>(notificationsProvider, (
+      previous,
+      next,
+    ) {
+      if (next is AsyncData<List<Map<String, dynamic>>>) {
+        final currentList = next.value;
+        if (previous != null &&
+            previous is AsyncData<List<Map<String, dynamic>>>) {
+          final prevList = previous.value;
           if (currentList.isNotEmpty &&
               (prevList.isEmpty ||
                   currentList.first['_id'] != prevList.first['_id'])) {
@@ -34,11 +90,7 @@ class WebLayout extends ConsumerWidget {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   behavior: SnackBarBehavior.floating,
-                  margin: const EdgeInsets.only(
-                    bottom: 20,
-                    right: 20,
-                    left: 20,
-                  ),
+                  margin: const EdgeInsets.all(20),
                   width: MediaQuery.of(context).size.width > 600 ? 400 : null,
                   backgroundColor: const Color(0xFF323232),
                   shape: RoundedRectangleBorder(
@@ -88,8 +140,8 @@ class WebLayout extends ConsumerWidget {
               );
             }
           }
-        });
-      });
+        }
+      }
     });
 
     final bool isMobile = MediaQuery.of(context).size.width < 1000;
@@ -101,24 +153,30 @@ class WebLayout extends ConsumerWidget {
       backgroundColor: const Color(0xFFF7F8FA),
       drawer: isMobile ? _buildMobileDrawer(context) : null,
       endDrawer: endDrawer,
-      body: Column(
+      body: Stack(
         children: [
-          WebNavBar(scaffoldKey: effectiveScaffoldKey),
+          Column(
+            children: [
+              WebNavBar(scaffoldKey: effectiveScaffoldKey),
 
-          // Scrollable Content
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Main Content
-                  child,
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      // Main Content
+                      child,
 
-                  // Footer
-                  const WebFooter(),
-                ],
+                      // Footer
+                      if (!isMobile) const WebFooter(),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
+          if (floatingBottomBar != null)
+            Positioned(bottom: 0, left: 0, right: 0, child: floatingBottomBar!),
         ],
       ),
     );

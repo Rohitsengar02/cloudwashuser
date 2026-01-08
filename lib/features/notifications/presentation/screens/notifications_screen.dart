@@ -43,12 +43,39 @@ class NotificationsScreen extends ConsumerWidget {
                     size: 20,
                   ),
                 ),
-                title: Text(
-                  n['title'] ?? 'Notification',
-                  style: TextStyle(
-                    fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
-                    fontSize: 14,
-                  ),
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        n['title'] ?? 'Notification',
+                        style: TextStyle(
+                          fontWeight: isRead
+                              ? FontWeight.normal
+                              : FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    if (n['source'] == 'firebase')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'FIREBASE',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,21 +86,30 @@ class NotificationsScreen extends ConsumerWidget {
                       style: const TextStyle(fontSize: 13),
                     ),
                     const SizedBox(height: 6),
-                    if (n['createdAt'] != null)
-                      Text(
-                        DateFormat(
-                          'MMM dd, hh:mm a',
-                        ).format(DateTime.parse(n['createdAt'])),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                        ),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (n['createdAt'] != null)
+                          Text(
+                            DateFormat(
+                              'MMM dd, hh:mm a',
+                            ).format(DateTime.parse(n['createdAt'])),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        if (!isRead)
+                          const Icon(Icons.circle, color: Colors.blue, size: 8),
+                      ],
+                    ),
                   ],
                 ),
                 onTap: () {
                   if (!isRead) {
-                    ref.read(notificationsProvider.notifier).markRead(n['_id']);
+                    ref
+                        .read(notificationsProvider.notifier)
+                        .markRead(n['_id'], source: n['source']);
                   }
                 },
               );
@@ -91,6 +127,7 @@ class NotificationsScreen extends ConsumerWidget {
       case 'order_created':
         return Icons.receipt_long;
       case 'order_status':
+      case 'order_update':
         return Icons.local_shipping;
       default:
         return Icons.notifications;

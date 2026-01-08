@@ -146,7 +146,7 @@ class CartSidebar extends ConsumerWidget {
                         ? null
                         : () {
                             Navigator.pop(context);
-                            context.push('/cart');
+                            context.go('/cart');
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,

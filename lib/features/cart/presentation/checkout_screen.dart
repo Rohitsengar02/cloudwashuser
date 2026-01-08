@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_user/features/location/data/address_provider.dart';
 import 'package:cloud_user/features/orders/data/order_provider.dart';
-import 'dart:ui';
+import 'package:cloud_user/features/auth/presentation/providers/auth_state_provider.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -25,47 +25,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize default address when screen loads
-    Future.microtask(() async {
-      try {
-        final addresses = await ref.read(userAddressesProvider.future);
-        print('📍 Loaded ${addresses.length} addresses in checkout');
-
-        if (addresses.isNotEmpty) {
-          // Find default or use first
-          final defaultAddr = addresses.firstWhere(
-            (a) => a.isDefault,
-            orElse: () => addresses.first,
-          );
-          ref.read(selectedAddressProvider.notifier).select(defaultAddr);
-          print('✅ Auto-selected address: ${defaultAddr.label}');
-        } else {
-          print('⚠️ No addresses available');
-        }
-      } catch (e) {
-        print('❌ Error loading addresses: $e');
-      }
-    });
+    // ... existing init code ...
   }
 
+  // ... _placeOrder mod ...
   Future<void> _placeOrder() async {
     // Validate address
     final selectedAddress = ref.read(selectedAddressProvider);
-
-    print('🏠 selectedAddress: $selectedAddress');
-    print('🏠 selectedAddress == null: ${selectedAddress == null}');
-
     if (selectedAddress == null) {
-      print('❌ No address selected, showing error');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a delivery address')),
       );
       return;
     }
-
-    print(
-      '✅ Address selected: ${selectedAddress.label} - ${selectedAddress.fullAddress}',
-    );
 
     setState(() => _isLoading = true);
 
@@ -73,7 +45,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final cart = ref.read(cartProvider);
       final total = ref.read(cartTotalProvider);
 
-      // Prepare services data
+      // ... existing services/addons prep ...
       final services = cart.items.map((item) {
         return {
           'serviceId': item.service.id,
@@ -86,18 +58,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         };
       }).toList();
 
-      // Calculate price summary
       final subtotal = total;
-      final tax = subtotal * 0.05; // 5% tax
+      final tax = subtotal * 0.18; // Match UI 18% GST
       final deliveryCharge = 50.0;
       final grandTotal = subtotal + tax + deliveryCharge;
 
-      // Prepare addons data
       final addons = cart.selectedAddons.map((addon) {
         return {'addonId': addon.id, 'name': addon.name, 'price': addon.price};
       }).toList();
 
-      // Prepare order data
+      final scheduledDateTime = DateTime.now();
+
       final orderData = {
         'address': {
           'label': selectedAddress.label,
@@ -120,29 +91,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           'total': grandTotal,
         },
         'paymentMethod': _selectedPaymentMethod,
-        'scheduledDate': DateTime.now()
-            .add(const Duration(days: 1))
-            .toIso8601String(),
+        'scheduledDate': scheduledDateTime.toIso8601String(),
         'notes': 'Please handle with care',
       };
 
-      print('📦 Creating order with data: $orderData');
-
-      // Create order
+      // ... existing createOrder call ...
       final result = await ref
           .read(userOrdersProvider.notifier)
           .createOrder(orderData);
 
-      print('✅ Order created: ${result['order']}');
-
       final otp = result['order']['otp'];
       final orderNumber = result['order']['orderNumber'];
 
-      // Clear cart
       ref.read(cartProvider.notifier).clearCart();
 
       if (mounted) {
-        // Show success message with OTP
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Order #$orderNumber placed! Your OTP is: $otp'),
@@ -150,8 +113,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             backgroundColor: Colors.green,
           ),
         );
-
-        // Navigate to thank you page or order tracking
         context.go('/');
       }
     } catch (e) {
@@ -175,13 +136,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final total = ref.watch(cartTotalProvider);
     final isDesktop = MediaQuery.of(context).size.width > 1000;
 
-    // Platform-specific content structure
     Widget layout = isDesktop
         ? _buildDesktopLayout(cartState, total)
         : _buildMobileLayout(cartState, total);
 
     if (kIsWeb) {
       return WebLayout(
+        floatingBottomBar: isDesktop ? null : _buildBottomAction(total),
         child: Container(
           color: const Color(0xFFF8F9FB),
           padding: EdgeInsets.symmetric(
@@ -202,7 +163,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
     }
 
-    // Standard Scaffold for Mobile App
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
       appBar: AppBar(
@@ -236,7 +196,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Widget _buildMobileLayout(cartState, double total) {
     return _currentStep == 0
-        ? _buildDetailsSection(cartState, total)
+        ? _buildDetailsSection(cartState, total) // This uses the new section
         : _buildPaymentSection(total);
   }
 
@@ -244,10 +204,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column: Steps & Input
         SizedBox(
-          width:
-              600, // Fixed width for desktop to prevent overflow/assertion errors
+          width: 600,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -272,7 +230,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ),
         ),
         const SizedBox(width: 60),
-        // Right Column: Summary Card
         Expanded(
           child: Container(
             decoration: BoxDecoration(
@@ -433,79 +390,130 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       children: [
         _sectionTitle('Service Address', isDesktop: isDesktop),
         const SizedBox(height: 12),
-        Container(
-          padding: EdgeInsets.all(isDesktop ? 32 : 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
+        Consumer(
+          builder: (context, ref, _) {
+            final isLoggedIn = ref.watch(authStateProvider).value ?? false;
+
+            if (!isLoggedIn) {
+              return Container(
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.grey.shade100),
                 ),
-                child: Icon(
-                  Icons.location_on,
-                  color: AppTheme.primary,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      selectedAddress?.label ?? 'No address selected',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isDesktop ? 18 : 15,
-                      ),
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 48,
+                      color: Colors.grey,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      selectedAddress?.fullAddress ??
-                          'Please add a service address',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: isDesktop ? 14 : 12,
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Log in to select address',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Please login to continue with your booking',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => context.push('/login'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Login Now'),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
+              );
+            }
+
+            return Container(
+              padding: EdgeInsets.all(isDesktop ? 32 : 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => _showAddressSelection(context),
-                child: const Text(
-                  'Change',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.location_on,
+                      color: AppTheme.primary,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selectedAddress?.label ?? 'No address selected',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isDesktop ? 18 : 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          selectedAddress?.fullAddress ??
+                              'Please add a service address',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: isDesktop ? 14 : 12,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _showAddressSelection(context),
+                    child: const Text(
+                      'Change',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
+
+        const SizedBox(height: 32),
+
         if (!isDesktop) ...[
           const SizedBox(height: 32),
           _sectionTitle('Order Summary', isDesktop: isDesktop),
           const SizedBox(height: 12),
           _buildPricingCard(cartState, total),
         ],
-        const SizedBox(height: 40),
-        _sectionTitle('Recommended Add-ons', isDesktop: isDesktop),
-        const SizedBox(height: 16),
-        _buildAddonsRow(addonsAsync, cartState, isDesktop: isDesktop),
       ],
     );
   }

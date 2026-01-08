@@ -1,103 +1,126 @@
-import 'package:cloud_user/core/theme/app_theme.dart';
-import 'package:cloud_user/features/web/presentation/web_layout.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_user/features/orders/data/order_model.dart';
+import 'package:cloud_user/features/orders/data/order_provider.dart';
+import 'package:cloud_user/features/web/presentation/web_layout.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-class BookingDetailsScreen extends StatelessWidget {
+class BookingDetailsScreen extends ConsumerWidget {
   final String bookingId;
   const BookingDetailsScreen({super.key, required this.bookingId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final orderAsync = ref.watch(orderDetailsProvider(bookingId));
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
-    Widget content = SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? MediaQuery.of(context).size.width * 0.1 : 20,
-        vertical: 30,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with Title and Status
-          Row(
+    return orderAsync.when(
+      data: (order) {
+        Widget content = SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: isDesktop
+                ? MediaQuery.of(context).size.width * 0.1
+                : 20,
+            vertical: 30,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.black),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: Colors.blue),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Booking Details',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const Spacer(),
+                  _buildStatusChip(order.status),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Booking Details',
-                style: GoogleFonts.poppins(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+              const SizedBox(height: 30),
+              if (isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        children: [
+                          _buildServiceInfoCard(order),
+                          const SizedBox(height: 20),
+                          _buildPaymentDetailsCard(order),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 30),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        children: [
+                          _buildProviderDetailsCard(),
+                          const SizedBox(height: 20),
+                          _buildOTPCard(order),
+                          const SizedBox(height: 20),
+                          _buildActionsCard(),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  children: [
+                    _buildServiceInfoCard(order),
+                    const SizedBox(height: 20),
+                    _buildProviderDetailsCard(),
+                    const SizedBox(height: 20),
+                    _buildOTPCard(order),
+                    const SizedBox(height: 20),
+                    _buildPaymentDetailsCard(order),
+                    const SizedBox(height: 20),
+                    _buildActionsCard(),
+                  ],
                 ),
-              ),
-              const Spacer(),
-              _buildStatusChip('Pending'),
             ],
           ),
-          const SizedBox(height: 30),
+        );
 
-          if (isDesktop)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      _buildServiceInfoCard(),
-                      const SizedBox(height: 20),
-                      _buildPaymentDetailsCard(),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 30),
-                // Right Column
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    children: [
-                      _buildProviderDetailsCard(),
-                      const SizedBox(height: 20),
-                      _buildOTPCard(),
-                      const SizedBox(height: 20),
-                      _buildActionsCard(),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          else
-            Column(
-              children: [
-                _buildServiceInfoCard(),
-                const SizedBox(height: 20),
-                _buildProviderDetailsCard(),
-                const SizedBox(height: 20),
-                _buildOTPCard(),
-                const SizedBox(height: 20),
-                _buildPaymentDetailsCard(),
-                const SizedBox(height: 20),
-                _buildActionsCard(),
-              ],
-            ),
-        ],
+        if (kIsWeb) return WebLayout(child: content);
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8F9FA),
+          body: SafeArea(child: content),
+        );
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Error: $e'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () =>
+                    ref.invalidate(orderDetailsProvider(bookingId)),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
       ),
-    );
-
-    if (kIsWeb) {
-      return WebLayout(child: content);
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: SafeArea(child: content),
     );
   }
 
@@ -126,7 +149,7 @@ class BookingDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildServiceInfoCard() {
+  Widget _buildServiceInfoCard(OrderModel order) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -161,41 +184,47 @@ class BookingDetailsScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.build_outlined,
-                  color: AppTheme.primary,
+                  Icons.local_laundry_service_outlined,
+                  color: Color(0xFF1A73E8),
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Router Configuration',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.services.map((s) => s.name).join(', '),
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today_outlined,
-                        size: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Tue Jan 06 2026 • 12:00 PM',
-                        style: GoogleFonts.inter(
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
                           color: Colors.grey.shade600,
-                          fontSize: 14,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 6),
+                        Text(
+                          DateFormat(
+                            'MMM dd, yyyy • hh:mm a',
+                          ).format(order.createdAt),
+                          style: GoogleFonts.inter(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -207,30 +236,32 @@ class BookingDetailsScreen extends StatelessWidget {
             children: [
               const Icon(
                 Icons.location_on_outlined,
-                color: AppTheme.primary,
+                color: Color(0xFF1A73E8),
                 size: 20,
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Service Location',
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: Colors.black,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Service Location',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'pratap vihar',
-                    style: GoogleFonts.inter(
-                      color: Colors.grey.shade600,
-                      fontSize: 14,
+                    const SizedBox(height: 4),
+                    Text(
+                      order.address.fullAddress ?? 'N/A',
+                      style: GoogleFonts.inter(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -239,7 +270,7 @@ class BookingDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentDetailsCard() {
+  Widget _buildPaymentDetailsCard(OrderModel order) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -264,19 +295,21 @@ class BookingDetailsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Router Configuration x',
-                style: GoogleFonts.inter(color: Colors.grey.shade700),
-              ),
-              Text(
-                '₹NaN',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-              ),
-            ],
+          ...order.services.map(
+            (s) => _priceDetailRow('${s.name} x${s.quantity}', s.total),
           ),
+          if (order.addons.isNotEmpty)
+            ...order.addons.map(
+              (a) => _priceDetailRow('${a.name} (Addon)', a.price),
+            ),
+          _priceDetailRow('Tax', order.priceSummary.tax),
+          _priceDetailRow('Delivery', order.priceSummary.deliveryCharge),
+          if (order.priceSummary.discount > 0)
+            _priceDetailRow(
+              'Discount',
+              -order.priceSummary.discount,
+              isGreen: true,
+            ),
           const SizedBox(height: 20),
           Divider(color: Colors.grey.shade100),
           const SizedBox(height: 20),
@@ -291,14 +324,38 @@ class BookingDetailsScreen extends StatelessWidget {
                 ),
               ),
               Text(
-                '₹399',
+                '₹${order.priceSummary.total.toStringAsFixed(2)}',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.bold,
                   fontSize: 22,
-                  color: AppTheme.primary,
+                  color: const Color(0xFF1A73E8),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceDetailRow(String label, double price, {bool isGreen = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(color: Colors.grey.shade700),
+            ),
+          ),
+          Text(
+            '₹${price.toStringAsFixed(2)}',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: isGreen ? Colors.green : Colors.black,
+            ),
           ),
         ],
       ),
@@ -416,12 +473,12 @@ class BookingDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppTheme.primary, size: 20),
+          Icon(icon, color: const Color(0xFF1A73E8), size: 20),
           const SizedBox(width: 8),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: AppTheme.primary,
+              color: const Color(0xFF1A73E8),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -430,7 +487,8 @@ class BookingDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOTPCard() {
+  Widget _buildOTPCard(OrderModel order) {
+    if (order.otp.isEmpty) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -470,7 +528,7 @@ class BookingDetailsScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: '678621'.split('').map((digit) {
+            children: order.otp.split('').map((digit) {
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
@@ -497,9 +555,9 @@ class BookingDetailsScreen extends StatelessWidget {
             text: TextSpan(
               style: GoogleFonts.inter(color: Colors.black, fontSize: 13),
               children: [
-                const TextSpan(text: 'Booking ID: '),
+                const TextSpan(text: 'Order Number: '),
                 TextSpan(
-                  text: '5C484C',
+                  text: order.orderNumber,
                   style: GoogleFonts.inter(fontWeight: FontWeight.bold),
                 ),
               ],
@@ -543,7 +601,7 @@ class BookingDetailsScreen extends StatelessWidget {
               icon: const Icon(Icons.track_changes),
               label: const Text('Track Job'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
+                backgroundColor: const Color(0xFF1A73E8),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),

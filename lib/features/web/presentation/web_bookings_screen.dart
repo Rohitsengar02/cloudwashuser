@@ -19,13 +19,16 @@ class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ordersStream = ref.watch(userOrdersRealtimeProvider);
+    final bool isMobile = MediaQuery.of(context).size.width < 1000;
+    final ordersAsync = ref.watch(userOrdersRealtimeProvider);
 
-    // Use WebLayout, but avoid Scaffold nesting and infinite height issues
     return WebLayout(
       child: Container(
         constraints: const BoxConstraints(minHeight: 600),
-        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 40),
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 20 : 40,
+          horizontal: isMobile ? 16 : 40,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -51,7 +54,7 @@ class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
                     Text(
                       'My Bookings',
                       style: GoogleFonts.outfit(
-                        fontSize: 32,
+                        fontSize: isMobile ? 24 : 32,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF1F2937),
                       ),
@@ -59,7 +62,7 @@ class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
                     Text(
                       'Manage and track all your service requests',
                       style: GoogleFonts.inter(
-                        fontSize: 14,
+                        fontSize: isMobile ? 12 : 14,
                         color: const Color(0xFF6B7280),
                       ),
                     ),
@@ -76,7 +79,7 @@ class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
             const SizedBox(height: 32),
 
             // Orders Grid
-            ordersStream.when(
+            ordersAsync.when(
               data: (orders) {
                 // Filter orders
                 final filteredOrders = _selectedFilter == 'all'
@@ -88,14 +91,13 @@ class _WebBookingsScreenState extends ConsumerState<WebBookingsScreen> {
                 }
 
                 return GridView.builder(
-                  shrinkWrap: true, // CRITICAL: Allows scrolling by parent
-                  physics:
-                      const NeverScrollableScrollPhysics(), // CRITICAL: Disable internal scroll
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 500,
-                    mainAxisExtent: 360, // Increased height to prevent overflow
-                    crossAxisSpacing: 24,
-                    mainAxisSpacing: 24,
+                    mainAxisExtent: isMobile ? 380 : 360,
+                    crossAxisSpacing: isMobile ? 12 : 24,
+                    mainAxisSpacing: isMobile ? 12 : 24,
                   ),
                   itemCount: filteredOrders.length,
                   itemBuilder: (context, index) => _BookingCard(
@@ -583,20 +585,26 @@ class _BookingDetailsModal extends ConsumerStatefulWidget {
 class _BookingDetailsModalState extends ConsumerState<_BookingDetailsModal> {
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 1000;
     return Align(
-      alignment: Alignment.centerRight,
+      alignment: isMobile ? Alignment.bottomCenter : Alignment.centerRight,
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 500,
-          height: double.infinity,
+          width: isMobile ? double.infinity : 500,
+          height: isMobile
+              ? MediaQuery.of(context).size.height * 0.9
+              : double.infinity,
           decoration: BoxDecoration(
             color: Colors.white,
+            borderRadius: isMobile
+                ? const BorderRadius.vertical(top: Radius.circular(24))
+                : null,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 40,
-                offset: const Offset(-10, 0),
+                offset: isMobile ? const Offset(0, -10) : const Offset(-10, 0),
               ),
             ],
           ),
@@ -732,6 +740,90 @@ class _BookingDetailsModalState extends ConsumerState<_BookingDetailsModal> {
                         subtitle: widget.order.address.fullAddress ?? 'N/A',
                         trailing: widget.order.address.phone,
                       ),
+
+                      if (widget.order.scheduledDate != null) ...[
+                        const SizedBox(height: 32),
+                        _sectionTitle('Scheduled Date'),
+                        const SizedBox(height: 12),
+                        _detailCard(
+                          icon: Icons.access_time_filled_rounded,
+                          title: 'Service Date',
+                          subtitle: DateFormat(
+                            'EEEE, MMM dd, yyyy',
+                          ).format(widget.order.scheduledDate!),
+                        ),
+                      ],
+
+                      const SizedBox(height: 32),
+                      _sectionTitle('Payment Details'),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFF3F4F6)),
+                        ),
+                        child: Column(
+                          children: [
+                            _infoRow('Method', widget.order.paymentMethod),
+                            const Divider(height: 24),
+                            _infoRow(
+                              'Status',
+                              widget.order.paymentStatus.toUpperCase(),
+                              color: widget.order.paymentStatus == 'paid'
+                                  ? Colors.green
+                                  : Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      if (widget.order.notes != null &&
+                          widget.order.notes!.isNotEmpty) ...[
+                        const SizedBox(height: 32),
+                        _sectionTitle('Notes'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF7ED),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFFEDD5)),
+                          ),
+                          child: Text(
+                            widget.order.notes!,
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF9A3412),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      if (widget.order.status == 'cancelled' &&
+                          widget.order.cancellationReason != null) ...[
+                        const SizedBox(height: 32),
+                        _sectionTitle('Cancellation Reason'),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFEE2E2)),
+                          ),
+                          child: Text(
+                            widget.order.cancellationReason!,
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF991B1B),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 32),
                       _sectionTitle('Services & Addons'),
@@ -994,6 +1086,29 @@ class _BookingDetailsModalState extends ConsumerState<_BookingDetailsModal> {
           style: GoogleFonts.sourceCodePro(
             fontWeight: FontWeight.w600,
             color: isGreen ? Colors.green : const Color(0xFF1F2937),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoRow(String label, String value, {Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: const Color(0xFF6B7280),
+            fontSize: 13,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: color ?? const Color(0xFF1F2937),
+            fontSize: 13,
           ),
         ),
       ],

@@ -6,13 +6,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
+import 'package:cloud_user/core/services/notification_service.dart';
+import 'package:cloud_user/features/notifications/presentation/providers/notification_provider.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy(); // Remove # from URLs
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  runApp(const ProviderScope(child: CloudUserApp()));
+  final container = ProviderContainer();
+  await container.read(notificationServiceProvider).init();
+
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const CloudUserApp(),
+    ),
+  );
 }
 
 class CloudUserApp extends ConsumerWidget {
@@ -21,6 +32,8 @@ class CloudUserApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(goRouterProvider);
+    // Keep notifications active
+    ref.watch(notificationsProvider);
 
     return MaterialApp.router(
       title: 'Cloud Wash',

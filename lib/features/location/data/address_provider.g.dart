@@ -25,12 +25,12 @@ final userAddressesProvider =
     );
 
 typedef _$UserAddresses = AutoDisposeAsyncNotifier<List<AddressModel>>;
-String _$selectedAddressHash() => r'38f164ed06f7565f3f9631728e6815718e6fde81';
+String _$selectedAddressHash() => r'00aceeb3f1170e9a0d26a223c5ed12a717cf5d8b';
 
 /// See also [SelectedAddress].
 @ProviderFor(SelectedAddress)
 final selectedAddressProvider =
-    AutoDisposeNotifierProvider<SelectedAddress, AddressModel?>.internal(
+    NotifierProvider<SelectedAddress, AddressModel?>.internal(
       SelectedAddress.new,
       name: r'selectedAddressProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -40,6 +40,6 @@ final selectedAddressProvider =
       allTransitiveDependencies: null,
     );
 
-typedef _$SelectedAddress = AutoDisposeNotifier<AddressModel?>;
+typedef _$SelectedAddress = Notifier<AddressModel?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

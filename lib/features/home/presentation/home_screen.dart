@@ -1,4 +1,4 @@
-import 'package:cloud_user/features/home/data/categories_provider.dart';
+import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

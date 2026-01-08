@@ -2,8 +2,7 @@
     "version": 2,
     "public": true,
     "cleanUrls": true,
-    "installCommand": "if ! [ -x \"$(command -v flutter)\" ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1 && export PATH=\"$PATH:`pwd`/flutter/bin\"; fi && flutter doctor && flutter pub get",
-    "buildCommand": "flutter build web --release --web-renderer canvaskit",
+    "buildCommand": "if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1; fi && export PATH=\"$PATH:$PWD/flutter/bin\" && flutter doctor -v && flutter pub get && flutter build web --release --web-renderer canvaskit",
     "outputDirectory": "build/web",
     "rewrites": [
         {

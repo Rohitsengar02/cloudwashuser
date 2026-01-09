@@ -1,6 +1,6 @@
+import 'package:cloud_user/core/models/category_model.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
-import 'package:cloud_user/features/home/data/categories_provider.dart';
-import 'package:cloud_user/features/home/data/hero_provider.dart';
+import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/home/data/hero_section_model.dart';
 import 'package:cloud_user/features/home/data/about_us_model.dart';
 import 'package:cloud_user/features/home/data/stats_model.dart';
@@ -70,6 +70,10 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
     final heroAsync = ref.watch(heroSectionProvider);
+    final aboutUsAsync = ref.watch(aboutUsProvider);
+    final statsAsync = ref.watch(statsProvider);
+    final testimonialsAsync = ref.watch(testimonialsProvider);
+    final whyChooseUsAsync = ref.watch(whyChooseUsProvider);
 
     return Stack(
       children: [
@@ -78,14 +82,14 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
             children: [
               _buildHeroSection(context, heroAsync),
               _buildCategoriesSection(context, categoriesAsync),
-              _buildAboutUsSection(context),
+              _buildAboutUsSection(context, aboutUsAsync),
               _buildSpotlightSection(context),
               _buildOffersSection(context),
               _buildMostBookedSection(context),
               _buildBlogPreviewSection(context),
-              _buildWhyChooseUsSection(context),
-              _buildTestimonialsSection(context),
-              _buildStatsAndDownloadSection(context),
+              _buildWhyChooseUsSection(context, whyChooseUsAsync),
+              _buildTestimonialsSection(context, testimonialsAsync),
+              _buildStatsAndDownloadSection(context, statsAsync),
             ],
           ),
         ),
@@ -429,7 +433,7 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
 
   Widget _buildCategoriesSection(
     BuildContext context,
-    AsyncValue<List<dynamic>> categoriesAsync,
+    AsyncValue<List<CategoryModel>> categoriesAsync,
   ) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 1000;
@@ -536,42 +540,53 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
     );
   }
 
-  Widget _buildAboutUsSection(BuildContext context) {
+  Widget _buildAboutUsSection(
+    BuildContext context,
+    AsyncValue<AboutUsModel?> aboutUsAsync,
+  ) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 1000;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: isMobile ? 20 : 40,
-        horizontal: isMobile ? 20 : 40,
-      ),
-      color: Colors.white,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: isMobile
-              ? Column(
-                  children: [
-                    _buildAboutUsContent(context, isMobile),
-                    const SizedBox(height: 60),
-                    _buildAboutUsImages(isMobile),
-                  ],
-                )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Left Side: Image Collage
-                    Expanded(flex: 6, child: _buildAboutUsImages(isMobile)),
-                    const SizedBox(width: 80),
-                    // Right Side: Content
-                    Expanded(
-                      flex: 5,
-                      child: _buildAboutUsContent(context, isMobile),
-                    ),
-                  ],
-                ),
+    return aboutUsAsync.when(
+      data: (aboutUs) => Container(
+        padding: EdgeInsets.symmetric(
+          vertical: isMobile ? 20 : 40,
+          horizontal: isMobile ? 20 : 40,
+        ),
+        color: Colors.white,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: isMobile
+                ? Column(
+                    children: [
+                      _buildAboutUsContent(context, isMobile, aboutUs: aboutUs),
+                      const SizedBox(height: 60),
+                      _buildAboutUsImages(isMobile),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Left Side: Image Collage
+                      Expanded(flex: 6, child: _buildAboutUsImages(isMobile)),
+                      const SizedBox(width: 80),
+                      // Right Side: Content
+                      Expanded(
+                        flex: 5,
+                        child: _buildAboutUsContent(
+                          context,
+                          isMobile,
+                          aboutUs: aboutUs,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
       ),
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
     );
   }
 
@@ -679,7 +694,11 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
     );
   }
 
-  Widget _buildAboutUsContent(BuildContext context, bool isMobile) {
+  Widget _buildAboutUsContent(
+    BuildContext context,
+    bool isMobile, {
+    AboutUsModel? aboutUs,
+  }) {
     return Column(
       crossAxisAlignment: isMobile
           ? CrossAxisAlignment.center
@@ -703,7 +722,7 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
         ),
         const SizedBox(height: 24),
         Text(
-          'Your Trusted Partner in\nLaundry Care.',
+          aboutUs?.title ?? 'Your Trusted Partner in\nLaundry Care.',
           textAlign: isMobile ? TextAlign.center : TextAlign.start,
           style: GoogleFonts.playfairDisplay(
             fontSize: isMobile ? 32 : 48,
@@ -714,7 +733,8 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
         ),
         const SizedBox(height: 20),
         Text(
-          'We provide professional laundry and dry cleaning services with a focus on quality, convenience, and care. Our mission is to make your life easier by taking the burden of laundry off your shoulders.',
+          aboutUs?.description ??
+              'We provide professional laundry and dry cleaning services with a focus on quality, convenience, and care. Our mission is to make your life easier by taking the burden of laundry off your shoulders.',
           textAlign: isMobile ? TextAlign.center : TextAlign.start,
           style: TextStyle(
             fontSize: 16,
@@ -723,23 +743,36 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
           ),
         ),
         const SizedBox(height: 40),
-        const _AboutFeatureItem(
-          title: 'Passionate Expertise',
-          desc:
-              'Our team consists of fabric care experts who treat every garment with the respect it deserves.',
-        ),
-        const SizedBox(height: 24),
-        const _AboutFeatureItem(
-          title: 'Cutting-Edge Technology',
-          desc:
-              'We use the latest eco-friendly cleaning technology to ensure the best results for your clothes and the environment.',
-        ),
-        const SizedBox(height: 24),
-        const _AboutFeatureItem(
-          title: 'Customer-Centric Approach',
-          desc:
-              'Everything we do is designed around your convenience, from easy scheduling to friendly service.',
-        ),
+        if (aboutUs != null && aboutUs.points.isNotEmpty)
+          ...aboutUs.points.map((point) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: _AboutFeatureItem(
+                title: point,
+                desc:
+                    '', // Default description if not provided in simple string list
+              ),
+            );
+          }).toList()
+        else ...[
+          const _AboutFeatureItem(
+            title: 'Passionate Expertise',
+            desc:
+                'Our team consists of fabric care experts who treat every garment with the respect it deserves.',
+          ),
+          const SizedBox(height: 24),
+          const _AboutFeatureItem(
+            title: 'Cutting-Edge Technology',
+            desc:
+                'We use the latest eco-friendly cleaning technology to ensure the best results for your clothes and the environment.',
+          ),
+          const SizedBox(height: 24),
+          const _AboutFeatureItem(
+            title: 'Customer-Centric Approach',
+            desc:
+                'Everything we do is designed around your convenience, from easy scheduling to friendly service.',
+          ),
+        ],
       ],
     );
   }
@@ -1446,247 +1479,226 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
     );
   }
 
-  Widget _buildWhyChooseUsSection(BuildContext context) {
+  Widget _buildWhyChooseUsSection(
+    BuildContext context,
+    AsyncValue<List<WhyChooseUsModel>> whyChooseUsAsync,
+  ) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 1000;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: isMobile ? 30 : 40,
-        horizontal: isMobile ? 20 : 40,
-      ),
-      color: const Color(0xFFFDFCFB),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1300),
-          child: Column(
-            children: [
-              Column(
-                children: [
-                  Text(
-                    'OUR COMMITMENT',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF6366F1),
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Why Choose Us',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: isMobile ? 32 : 48,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'We provide the highest standards of care for your beloved garments.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: isMobile ? 16 : 18,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-              if (isMobile)
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
-                  childAspectRatio: 0.65, // More vertical room for mobile
-                  children: [
-                    _WhyChooseCard(
-                      icon: Icons.verified_user_rounded,
-                      title: 'Quality Assurance',
-                      subtitle: 'Premium standards',
-                      color: const Color(0xFF6366F1),
-                    ),
-                    _WhyChooseCard(
-                      icon: Icons.timer_rounded,
-                      title: 'On Time Delivery',
-                      subtitle: 'Reliable schedule',
-                      color: const Color(0xFFEC4899),
-                    ),
-                    _WhyChooseCard(
-                      icon: Icons.eco_rounded,
-                      title: 'Eco Friendly',
-                      subtitle: 'Sustainable care',
-                      color: const Color(0xFF14B8A6),
-                    ),
-                    _WhyChooseCard(
-                      icon: Icons.payments_rounded,
-                      title: 'Fair Pricing',
-                      subtitle: 'Competitive rates',
-                      color: const Color(0xFFF59E0B),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: _WhyChooseCard(
-                        icon: Icons.verified_user_rounded,
-                        title: 'Quality Assurance',
-                        subtitle:
-                            'Highest quality standards for your premium clothes',
-                        color: const Color(0xFF6366F1),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: _WhyChooseCard(
-                        icon: Icons.timer_rounded,
-                        title: 'On Time Delivery',
-                        subtitle:
-                            'Reliable schedule that respects your precious time',
-                        color: const Color(0xFFEC4899),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: _WhyChooseCard(
-                        icon: Icons.eco_rounded,
-                        title: 'Eco Friendly',
-                        subtitle:
-                            'Sustainable practices and non-toxic cleaning agents',
-                        color: const Color(0xFF14B8A6),
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: _WhyChooseCard(
-                        icon: Icons.payments_rounded,
-                        title: 'Fair Pricing',
-                        subtitle:
-                            'Premium laundry service at competitive market rates',
-                        color: const Color(0xFFF59E0B),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+    return whyChooseUsAsync.when(
+      data: (items) {
+        return Container(
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 30 : 40,
+            horizontal: isMobile ? 20 : 40,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTestimonialsSection(BuildContext context) {
-    final double screenWidth = MediaQuery.of(context).size.width;
-    final bool isMobile = screenWidth < 1000;
-
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: isMobile ? 30 : 50,
-        horizontal: isMobile ? 20 : 40,
-      ),
-      color: const Color(0xFFF8FAFC),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1300),
-          child: Column(
-            children: [
-              Column(
+          color: const Color(0xFFFDFCFB),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1300),
+              child: Column(
                 children: [
-                  Text(
-                    'REVIEWS',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF6366F1),
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'What Our Customers Say',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: isMobile ? 32 : 48,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1E293B),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-              if (isMobile)
-                SizedBox(
-                  height: 300,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
+                  Column(
                     children: [
-                      _buildTestimonialCard(
-                        'Sarah J.',
-                        'Mumbai',
-                        5,
-                        'Absolutely love the service! My clothes have never looked better.',
-                        'https://i.pravatar.cc/150?u=sarah',
+                      Text(
+                        'OUR COMMITMENT',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF6366F1),
+                          letterSpacing: 2,
+                        ),
                       ),
-                      _buildTestimonialCard(
-                        'Rahul M.',
-                        'Bangalore',
-                        5,
-                        'The 6 stage process really makes a difference. Stains are gone.',
-                        'https://i.pravatar.cc/150?u=rahul',
+                      const SizedBox(height: 12),
+                      Text(
+                        'Why Choose Us',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: isMobile ? 32 : 48,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
                       ),
-                      _buildTestimonialCard(
-                        'Priya S.',
-                        'Delhi',
-                        5,
-                        'Great app experience and very professional staff.',
-                        'https://i.pravatar.cc/150?u=priya',
+                      const SizedBox(height: 12),
+                      Text(
+                        'We provide the highest standards of care for your beloved garments.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: isMobile ? 16 : 18,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTestimonialCard(
-                        'Sarah J.',
-                        'Mumbai',
-                        5,
-                        'Absolutely love the service! My clothes have never looked better. The pickup and delivery is super convenient.',
-                        'https://i.pravatar.cc/150?u=sarah',
-                      ),
+                  const SizedBox(height: 30),
+                  if (isMobile)
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 15,
+                      mainAxisSpacing: 15,
+                      childAspectRatio: 0.65,
+                      children: items.map((item) {
+                        return _WhyChooseCard(
+                          icon: _getIconData(item.iconUrl),
+                          title: item.title,
+                          subtitle: item.description,
+                          color: _getWhyChooseColor(item.title),
+                        );
+                      }).toList(),
+                    )
+                  else
+                    Row(
+                      children: items.map((item) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: _WhyChooseCard(
+                              icon: _getIconData(item.iconUrl),
+                              title: item.title,
+                              subtitle: item.description,
+                              color: _getWhyChooseColor(item.title),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      child: _buildTestimonialCard(
-                        'Rahul M.',
-                        'Bangalore',
-                        5,
-                        'The 6 stage process really makes a difference. Stains I thought were permanent are gone. Highly recommended!',
-                        'https://i.pravatar.cc/150?u=rahul',
-                      ),
-                    ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      child: _buildTestimonialCard(
-                        'Priya S.',
-                        'Delhi',
-                        5,
-                        'Great app experience and very professional staff. The real-time tracking helps me plan my day better.',
-                        'https://i.pravatar.cc/150?u=priya',
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
+    );
+  }
+
+  IconData _getIconData(String iconName) {
+    switch (iconName) {
+      case 'verified_user_rounded':
+        return Icons.verified_user_rounded;
+      case 'timer_rounded':
+        return Icons.timer_rounded;
+      case 'eco_rounded':
+        return Icons.eco_rounded;
+      case 'payments_rounded':
+        return Icons.payments_rounded;
+      case 'local_shipping_rounded':
+        return Icons.local_shipping_rounded;
+      case 'support_agent_rounded':
+        return Icons.support_agent_rounded;
+      case 'shopping_basket_rounded':
+        return Icons.shopping_basket_rounded;
+      case 'star_rounded':
+        return Icons.star_rounded;
+      default:
+        return Icons.star_rounded;
+    }
+  }
+
+  Color _getWhyChooseColor(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('quality')) return const Color(0xFF6366F1);
+    if (t.contains('time') || t.contains('delivery')) {
+      return const Color(0xFFEC4899);
+    }
+    if (t.contains('eco') || t.contains('friendly')) {
+      return const Color(0xFF14B8A6);
+    }
+    if (t.contains('price') || t.contains('fair')) {
+      return const Color(0xFFF59E0B);
+    }
+    return const Color(0xFF6366F1);
+  }
+
+  Widget _buildTestimonialsSection(
+    BuildContext context,
+    AsyncValue<List<TestimonialModel>> testimonialsAsync,
+  ) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final bool isMobile = screenWidth < 1000;
+
+    return testimonialsAsync.when(
+      data: (items) {
+        return Container(
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 30 : 50,
+            horizontal: isMobile ? 20 : 40,
+          ),
+          color: const Color(0xFFF8FAFC),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1300),
+              child: Column(
+                children: [
+                  Column(
+                    children: [
+                      Text(
+                        'REVIEWS',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF6366F1),
+                          letterSpacing: 3,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'What Our Customers Say',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: isMobile ? 32 : 48,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  if (isMobile)
+                    SizedBox(
+                      height: 300,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: items.map((t) {
+                          return _buildTestimonialCard(
+                            t.name,
+                            t.role,
+                            t.rating.toInt(),
+                            t.message,
+                            t.imageUrl,
+                          );
+                        }).toList(),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: items.take(3).map((t) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: _buildTestimonialCard(
+                              t.name,
+                              t.role,
+                              t.rating.toInt(),
+                              t.message,
+                              t.imageUrl,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
     );
   }
 
@@ -1710,84 +1722,97 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
     );
   }
 
-  Widget _buildStatsAndDownloadSection(BuildContext context) {
+  Widget _buildStatsAndDownloadSection(
+    BuildContext context,
+    AsyncValue<StatsModel?> statsAsync,
+  ) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final bool isMobile = screenWidth < 1000;
 
-    final stats = [
-      {
-        'value': '50K+',
-        'label': 'Happy Customers',
-        'icon': Icons.people_alt_rounded,
-      },
-      {
-        'value': '1000+',
-        'label': 'Verified Pros',
-        'icon': Icons.verified_user_rounded,
-      },
-      {
-        'value': '20+',
-        'label': 'Cities Presence',
-        'icon': Icons.location_on_rounded,
-      },
-      {'value': '4.8', 'label': 'Average Rating', 'icon': Icons.star_rounded},
-    ];
+    return statsAsync.when(
+      data: (statsData) {
+        final statsItems = [
+          {
+            'value': statsData?.happyClients ?? '50K+',
+            'label': 'Happy Customers',
+            'icon': Icons.people_alt_rounded,
+          },
+          {
+            'value': statsData?.totalBranches ?? '1000+',
+            'label': 'Verified Pros',
+            'icon': Icons.verified_user_rounded,
+          },
+          {
+            'value': statsData?.totalCities ?? '20+',
+            'label': 'Cities Presence',
+            'icon': Icons.location_on_rounded,
+          },
+          {
+            'value': statsData?.totalOrders ?? '100K+',
+            'label': 'Total Orders',
+            'icon': Icons.shopping_basket_rounded,
+          },
+        ];
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: isMobile ? 30 : 50,
-        horizontal: isMobile ? 20 : 40,
-      ),
-      decoration: const BoxDecoration(color: Colors.white),
-      child: Column(
-        children: [
-          // Stats Row
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1300),
-              child: isMobile
-                  ? GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 30,
-                      crossAxisSpacing: 20,
-                      children: stats
-                          .map((s) => _buildStatItem(s, isMobile))
-                          .toList(),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: stats
-                          .map((s) => _buildStatItem(s, isMobile))
-                          .toList(),
-                    ),
-            ),
+        return Container(
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 30 : 50,
+            horizontal: isMobile ? 20 : 40,
           ),
-          SizedBox(height: isMobile ? 80 : 100),
-          // App Download UI
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: isMobile
-                  ? Column(
-                      children: [
-                        _buildDownloadContent(isMobile),
-                        const SizedBox(height: 60),
-                        _buildDownloadAppMockup(isMobile),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Expanded(child: _buildDownloadContent(isMobile)),
-                        const SizedBox(width: 100),
-                        _buildDownloadAppMockup(isMobile),
-                      ],
-                    ),
-            ),
+          decoration: const BoxDecoration(color: Colors.white),
+          child: Column(
+            children: [
+              // Stats Row
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1300),
+                  child: isMobile
+                      ? GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 30,
+                          crossAxisSpacing: 20,
+                          children: statsItems
+                              .map((s) => _buildStatItem(s, isMobile))
+                              .toList(),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: statsItems
+                              .map((s) => _buildStatItem(s, isMobile))
+                              .toList(),
+                        ),
+                ),
+              ),
+              SizedBox(height: isMobile ? 80 : 100),
+              // App Download UI
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  child: isMobile
+                      ? Column(
+                          children: [
+                            _buildDownloadContent(isMobile),
+                            const SizedBox(height: 60),
+                            _buildDownloadAppMockup(isMobile),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Expanded(child: _buildDownloadContent(isMobile)),
+                            const SizedBox(width: 100),
+                            _buildDownloadAppMockup(isMobile),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
     );
   }
 
@@ -1946,27 +1971,6 @@ class _WebHomeScreenState extends ConsumerState<WebHomeScreen> {
 }
 
 // Helper Widgets
-class _FeatureBadge extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _FeatureBadge({required this.icon, required this.text});
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: AppTheme.primary),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _TrendingTag extends StatelessWidget {
   final String text;

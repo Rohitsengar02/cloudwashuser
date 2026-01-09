@@ -1,6 +1,5 @@
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/core/widgets/animated_background.dart';
-import 'package:cloud_user/features/home/data/hero_provider.dart';
 import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/home/data/web_content_providers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;

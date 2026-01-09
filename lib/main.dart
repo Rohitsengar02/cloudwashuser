@@ -1,6 +1,7 @@
 import 'package:cloud_user/core/firebase/firebase_options.dart';
 import 'package:cloud_user/core/router/app_router.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
+import 'package:cloud_user/core/widgets/animated_splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,11 +27,33 @@ void main() async {
   );
 }
 
-class CloudUserApp extends ConsumerWidget {
+class CloudUserApp extends ConsumerStatefulWidget {
   const CloudUserApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CloudUserApp> createState() => _CloudUserAppState();
+}
+
+class _CloudUserAppState extends ConsumerState<CloudUserApp> {
+  bool _showSplash = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return MaterialApp(
+        title: 'Cloud Wash',
+        theme: AppTheme.lightTheme,
+        debugShowCheckedModeBanner: false,
+        home: AnimatedSplashScreen(
+          onAnimationComplete: () {
+            setState(() {
+              _showSplash = false;
+            });
+          },
+        ),
+      );
+    }
+
     final router = ref.watch(goRouterProvider);
     // Keep notifications active
     ref.watch(notificationsProvider);

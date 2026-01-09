@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_user/core/models/service_model.dart';
 import 'package:cloud_user/features/cart/data/cart_provider.dart';
-import 'package:cloud_user/features/home/data/services_provider.dart';
+import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/web/presentation/web_layout.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';

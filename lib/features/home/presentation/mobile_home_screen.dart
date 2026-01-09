@@ -1,5 +1,7 @@
+import 'package:cloud_user/core/models/category_model.dart';
+import 'package:cloud_user/core/models/service_model.dart';
+import 'package:cloud_user/core/models/sub_category_model.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
-import 'package:cloud_user/features/home/data/hero_provider.dart';
 import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/home/data/web_content_providers.dart';
 import 'package:cloud_user/features/profile/presentation/providers/user_provider.dart';
@@ -8,8 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:cloud_user/core/models/service_model.dart';
-import 'package:cloud_user/core/models/sub_category_model.dart';
 import 'package:go_router/go_router.dart';
 
 class MobileHomeScreen extends ConsumerStatefulWidget {
@@ -382,7 +382,7 @@ class _MobileHomeScreenState extends ConsumerState<MobileHomeScreen> {
                         ? categories.skip(4).take(4).toList()
                         : <dynamic>[];
 
-                    Widget buildItem(dynamic cat) {
+                    Widget buildItem(CategoryModel cat) {
                       String displayName = cat.name.toString().toUpperCase();
                       final words = cat.name.toString().trim().split(' ');
                       if (words.length > 1) {

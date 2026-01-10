@@ -54,6 +54,7 @@ dependencies:
   carousel_slider: ^5.1.1
   flutter_local_notifications: ^19.5.0
   flutter_animate: ^4.5.2
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

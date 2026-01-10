@@ -34,6 +34,7 @@ class FirebaseHomeRepository {
           price: (data['price'] ?? 0).toDouble(),
           imageUrl: data['imageUrl'] ?? '',
           isActive: data['isActive'] ?? true,
+          mongoId: data['mongoId'],
         );
       }).toList();
     } catch (e) {
@@ -50,11 +51,63 @@ class FirebaseHomeRepository {
       Query query = _firestore.collection('services');
       if (categoryId != null)
         query = query.where('category', isEqualTo: categoryId);
-      if (subCategoryId != null)
+
+      if (subCategoryId != null) {
+        // Try to fetch by checking if 'subCategory' matches the ID
+        // Note: We might need to handle cases where 'subCategory' is a reference or just a string ID.
+        // Also, for legacy data, we might need to check if we need to query by 'subCategoryId' (if that field exists)
+        // or if we need to look up the sub-category first to get its mongoId.
+        // For now, let's assume direct match.
         query = query.where('subCategory', isEqualTo: subCategoryId);
+      }
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) {
+
+      // If no services found with direct ID match, and we have a subCategoryId,
+      // try to see if there are services linked via a "mongoId" (if the subCategoryId passed was a mongoId,
+      // but we switched to passing Firestore ID).
+      // actually, if we are passing Firestore ID now, and services are linked by Mongo ID, we have a mismatch.
+
+      // But let's look at the result first.
+      var docs = snapshot.docs;
+
+      // FALLBACK: If docs are empty and we have a subCategoryId (which is likely a Firestore ID),
+      // we need to check if we should be querying by the SubCategory's 'mongoId' instead.
+      if (docs.isEmpty && subCategoryId != null) {
+        // 1. Fetch the SubCategory document to get its mongoId
+        final subCatDoc = await _firestore
+            .collection('subCategories')
+            .doc(subCategoryId)
+            .get();
+        if (subCatDoc.exists) {
+          final data = subCatDoc.data();
+          final mongoId = data?['mongoId'];
+
+          if (mongoId != null) {
+            // 2. Query services using the MongoID in the 'subCategoryId' field (used by migration)
+            final query2 = _firestore
+                .collection('services')
+                .where('subCategoryId', isEqualTo: mongoId);
+            final snapshot2 = await query2.get();
+            if (snapshot2.docs.isNotEmpty) {
+              docs = snapshot2.docs;
+            }
+          }
+        }
+
+        // As a last LAST resort, check if 'subCategoryId' field matches the Firestore ID directy
+        if (docs.isEmpty) {
+          final query3 = _firestore
+              .collection('services')
+              .where('subCategoryId', isEqualTo: subCategoryId);
+          final snapshot3 = await query3.get();
+          if (snapshot3.docs.isNotEmpty) {
+            docs = snapshot3.docs;
+          }
+        }
+      }
+
+      return docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return ServiceModel.fromJson({'_id': doc.id, ...data});
       }).toList();
@@ -94,7 +147,16 @@ class FirebaseHomeRepository {
       final snapshot = await query.get();
       return snapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return SubCategoryModel.fromJson({'_id': doc.id, ...data});
+        return SubCategoryModel(
+          id: doc.id,
+          name: data['name'] ?? '',
+          description: data['description'],
+          price: (data['price'] ?? 0).toDouble(),
+          imageUrl: data['imageUrl'] ?? '',
+          isActive: data['isActive'] ?? true,
+          category: data['categoryId'],
+          mongoId: data['mongoId'],
+        );
       }).toList();
     } catch (e) {
       print('Firebase Error (SubCategories): $e');

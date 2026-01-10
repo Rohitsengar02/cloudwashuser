@@ -1,9 +1,13 @@
 import 'package:cloud_user/core/firebase/firebase_options.dart';
+import 'package:cloud_user/features/home/data/home_providers.dart';
+import 'package:cloud_user/features/home/data/web_content_providers.dart';
+import 'package:cloud_user/features/profile/presentation/providers/user_provider.dart';
 import 'package:cloud_user/core/router/app_router.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/core/widgets/animated_splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
@@ -35,7 +39,7 @@ class CloudUserApp extends ConsumerStatefulWidget {
 }
 
 class _CloudUserAppState extends ConsumerState<CloudUserApp> {
-  bool _showSplash = true;
+  bool _showSplash = !kIsWeb; // Skip splash on web/desktop
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,23 @@ class _CloudUserAppState extends ConsumerState<CloudUserApp> {
             setState(() {
               _showSplash = false;
             });
+          },
+          loadData: () async {
+            // Pre-fetch all home screen data
+            await Future.wait([
+              ref.read(heroSectionProvider.future),
+              ref.read(categoriesProvider.future),
+              ref.read(homeBannersProvider.future),
+              ref.read(spotlightServicesProvider.future),
+              ref.read(topServicesProvider.future),
+              ref.read(subCategoriesProvider.future),
+              ref.read(whyChooseUsProvider.future),
+              ref.read(userProfileProvider.future),
+              // Web specific but harmless to fetch
+              ref.read(aboutUsProvider.future),
+              ref.read(statsProvider.future),
+              ref.read(testimonialsProvider.future),
+            ]);
           },
         ),
       );

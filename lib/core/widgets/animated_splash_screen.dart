@@ -3,8 +3,13 @@ import 'dart:math' as math;
 
 class AnimatedSplashScreen extends StatefulWidget {
   final VoidCallback onAnimationComplete;
+  final Future<void> Function()? loadData;
 
-  const AnimatedSplashScreen({super.key, required this.onAnimationComplete});
+  const AnimatedSplashScreen({
+    super.key,
+    required this.onAnimationComplete,
+    this.loadData,
+  });
 
   @override
   State<AnimatedSplashScreen> createState() => _AnimatedSplashScreenState();
@@ -56,13 +61,26 @@ class _AnimatedSplashScreenState extends State<AnimatedSplashScreen>
       ),
     );
 
-    // Start animation
+    // Start animation and loading
+    _startEverything();
+  }
+
+  Future<void> _startEverything() async {
+    // Start visual animation
     _logoController.forward();
 
-    // Navigate after delay
-    Future.delayed(const Duration(milliseconds: 2500), () {
+    // Minimum splash duration
+    final minDuration = Future.delayed(const Duration(milliseconds: 2500));
+
+    // Data loading (if provided)
+    final dataLoading = widget.loadData?.call() ?? Future.value();
+
+    // Wait for BOTH to finish
+    await Future.wait([minDuration, dataLoading]);
+
+    if (mounted) {
       widget.onAnimationComplete();
-    });
+    }
   }
 
   @override

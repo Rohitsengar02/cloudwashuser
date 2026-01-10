@@ -19,7 +19,81 @@ class OrderRepository {
 
   OrderRepository(this._dio);
 
-  // Create order (MongoDB + Firebase)
+  // Create order in Firebase ONLY (no MongoDB)
+  Future<Map<String, dynamic>> createOrderFirebase(
+    Map<String, dynamic> orderData,
+  ) async {
+    try {
+      String uid;
+      if (_auth.currentUser != null) {
+        uid = _auth.currentUser!.uid;
+      } else {
+        // Fallback: If no Firebase user, check if we have a backend ID passed in the data
+        // This handles cases where Firebase Auth failed/not synced but user is logged in via backend
+        uid =
+            orderData['userId'] ??
+            orderData['_id'] ??
+            'guest_${DateTime.now().millisecondsSinceEpoch}';
+        print('⚠️ No Firebase User found. Using ID: $uid for order creation.');
+      }
+
+      // Generate order number and OTP
+      final orderNumber = 'ORD${DateTime.now().millisecondsSinceEpoch}';
+      final otp = (1000 + (DateTime.now().millisecondsSinceEpoch % 9000))
+          .toString();
+
+      // Add to main orders collection first to get the document ID
+      final docRef = await _firestore.collection('orders').add({
+        ...orderData,
+        'orderNumber': orderNumber,
+        'otp': otp,
+        'userId': uid,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Now create the complete order document with the ID
+      final orderDoc = {
+        ...orderData,
+        '_id': docRef.id, // ✅ Include the document ID
+        'orderNumber': orderNumber,
+        'otp': otp,
+        'userId': uid,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Update the main collection with the ID
+      await docRef.update({'_id': docRef.id});
+
+      // Add to user's orders subcollection with the ID included
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('orders')
+          .doc(docRef.id)
+          .set(orderDoc);
+
+      print('✅ Order ${docRef.id} created successfully in Firebase');
+
+      return {
+        'success': true,
+        'order': {
+          '_id': docRef.id,
+          'orderNumber': orderNumber,
+          'otp': otp,
+          ...orderDoc,
+        },
+      };
+    } catch (e) {
+      print('🔥 Firebase order creation error: $e');
+      rethrow;
+    }
+  }
+
+  // Create order (MongoDB + Firebase) - LEGACY
   Future<Map<String, dynamic>> createOrder(
     Map<String, dynamic> orderData,
   ) async {
@@ -86,7 +160,42 @@ class OrderRepository {
     }
   }
 
-  // Cancel order
+  // Cancel order in Firebase ONLY
+  Future<void> cancelOrderFirebase(
+    String orderId,
+    String reason, {
+    String? userId,
+  }) async {
+    try {
+      final uid = userId ?? _auth.currentUser?.uid;
+      if (uid == null) throw Exception('User not authenticated');
+
+      final updates = {
+        'status': 'cancelled',
+        'cancellationReason': reason,
+        'cancelledAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Update in main orders collection
+      await _firestore.collection('orders').doc(orderId).update(updates);
+
+      // Update in user's orders subcollection
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('orders')
+          .doc(orderId)
+          .update(updates);
+
+      print('✅ Order $orderId cancelled successfully in Firebase');
+    } catch (e) {
+      print('❌ Firebase cancel order error: $e');
+      rethrow;
+    }
+  }
+
+  // Cancel order (MongoDB) - LEGACY
   Future<OrderModel> cancelOrder(String orderId, String reason) async {
     try {
       final response = await _dio.post(
@@ -119,27 +228,39 @@ class OrderRepository {
       snapshot,
     ) {
       if (snapshot.exists) {
-        return OrderModel.fromJson(snapshot.data()!);
+        final data = snapshot.data()!;
+        if (!data.containsKey('_id')) {
+          data['_id'] = snapshot.id;
+        }
+        return OrderModel.fromJson(data);
       }
       return null;
     });
   }
 
   // Listen to user's orders real-time from Firebase
-  Stream<List<OrderModel>> listenToUserOrders() {
-    final user = _auth.currentUser;
-    if (user == null) return Stream.value([]);
+  Stream<List<OrderModel>> listenToUserOrders({String? userId}) {
+    final uid = userId ?? _auth.currentUser?.uid;
+    if (uid == null) return Stream.value([]);
 
     return _firestore
         .collection('users')
-        .doc(user.uid)
+        .doc(uid)
         .collection('orders')
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
-              .map((doc) => OrderModel.fromJson(doc.data()))
-              .toList();
+          final orders = snapshot.docs.map((doc) {
+            final data = doc.data();
+            // Ensure ID is present for cancellation/updates
+            if (!data.containsKey('_id')) {
+              data['_id'] = doc.id;
+            }
+            return OrderModel.fromJson(data);
+          }).toList();
+
+          // Sort in memory instead of Firestore to avoid index requirement
+          orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return orders;
         });
   }
 }

@@ -2,6 +2,7 @@ import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/core/widgets/animated_background.dart';
 import 'package:cloud_user/features/home/data/home_providers.dart';
 import 'package:cloud_user/features/home/data/web_content_providers.dart';
+import 'package:cloud_user/features/profile/presentation/providers/user_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -45,6 +46,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ref.read(subCategoriesProvider.future);
       ref.read(whyChooseUsProvider.future);
       ref.read(heroSectionProvider.future);
+      ref.read(userProfileProvider.future);
     });
   }
 

@@ -8,12 +8,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'home_providers.g.dart';
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<CategoryModel>> categories(CategoriesRef ref) {
   return ref.watch(firebaseHomeRepositoryProvider).getCategories();
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<SubCategoryModel>> subCategories(SubCategoriesRef ref) async {
   final data = await ref
       .watch(firebaseHomeRepositoryProvider)
@@ -44,7 +44,7 @@ Future<List<SubCategoryModel>> subCategories(SubCategoriesRef ref) async {
   return data;
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<SubCategoryModel>> subCategoriesByCategory(
   SubCategoriesByCategoryRef ref,
   String categoryId,
@@ -54,12 +54,12 @@ Future<List<SubCategoryModel>> subCategoriesByCategory(
       .getSubCategories(categoryId: categoryId);
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<BannerModel>> homeBanners(HomeBannersRef ref) {
   return ref.watch(firebaseHomeRepositoryProvider).getBanners();
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<ServiceModel>> spotlightServices(SpotlightServicesRef ref) async {
   final services = await ref
       .watch(firebaseHomeRepositoryProvider)
@@ -67,7 +67,7 @@ Future<List<ServiceModel>> spotlightServices(SpotlightServicesRef ref) async {
   return services.take(8).toList();
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<ServiceModel>> topServices(TopServicesRef ref) async {
   final services = await ref
       .watch(firebaseHomeRepositoryProvider)
@@ -75,7 +75,7 @@ Future<List<ServiceModel>> topServices(TopServicesRef ref) async {
   return services.take(10).toList();
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<List<ServiceModel>> services(
   ServicesRef ref, {
   String? categoryId,
@@ -86,7 +86,7 @@ Future<List<ServiceModel>> services(
       .getServices(categoryId: categoryId, subCategoryId: subCategoryId);
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 Future<HeroSectionModel?> heroSection(HeroSectionRef ref) {
   return ref.watch(firebaseHomeRepositoryProvider).getHeroSection();
 }

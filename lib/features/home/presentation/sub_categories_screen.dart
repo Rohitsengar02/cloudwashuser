@@ -147,6 +147,7 @@ class _SubCategoryCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
                   ],
                 ),
               ),

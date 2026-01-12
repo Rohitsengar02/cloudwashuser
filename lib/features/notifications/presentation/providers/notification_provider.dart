@@ -112,7 +112,7 @@ class NotificationNotifier
                   return dateB.compareTo(dateA);
                 });
 
-                state = AsyncValue.data(merged);
+                if (mounted) state = AsyncValue.data(merged);
               },
               onError: (e) {
                 print(
@@ -137,7 +137,7 @@ class NotificationNotifier
         final currentList = state.value ?? [];
         final id = data['_id'];
         if (id != null && !currentList.any((n) => n['_id'] == id)) {
-          state = AsyncValue.data([data, ...currentList]);
+          if (mounted) state = AsyncValue.data([data, ...currentList]);
           if (!_notifiedIds.contains(id)) {
             _notifiedIds.add(id);
             ref
@@ -150,7 +150,7 @@ class NotificationNotifier
         }
       });
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (mounted) state = AsyncValue.error(e, st);
     }
   }
 

@@ -10682,6 +10682,7 @@ _.x=c
 _.y=d
 _.z=null
 _.a=e
+_.c=!0
 _.f=f},
 aHK:function aHK(a){this.a=a},
 aHJ:function aHJ(){},
@@ -65044,7 +65045,7 @@ case 3:q=2
 d=p.pop()
 j=A.a1(d)
 i=A.aB(d)
-o.sjx(0,A.xx(j,i,t.b5))
+if(o.c)o.sjx(0,A.xx(j,i,t.b5))
 s=5
 break
 case 2:s=1
@@ -65089,7 +65090,7 @@ m=A.m(d).i("bA<2>")
 g=A.V(new A.bA(d,m),m.i("A.E"))
 n=g
 J.Y9(n,new A.aHJ())
-e.sjx(0,A.xw(n,t.b5))},
+if(e.c)e.sjx(0,A.xw(n,t.b5))},
 $S:801}
 A.aHJ.prototype={
 $2(a,b){var s,r="createdAt",q=J.aa(a,r),p=A.y3(q==null?new A.cm(Date.now(),0,!1).kD():q)
@@ -65115,10 +65116,9 @@ A.bU("\ud83d\udc64 Joined room: "+r)}}},
 $S:802}
 A.aHN.prototype={
 $1(a){var s,r=this.a,q=r.f,p=q.gq(q),o=p==null?A.c([],t.H7):p,n=a.h(0,"_id")
-if(n!=null&&!J.bgp(o,new A.aHI(n))){s=A.c([a],t.H7)
+if(n!=null&&!J.bgp(o,new A.aHI(n))){if(r.c){s=A.c([a],t.H7)
 J.nt(s,o)
-r.sjx(0,A.xw(s,t.b5))
-s=r.y
+r.sjx(0,A.xw(s,t.b5))}s=r.y
 if(!s.t(0,n)){s.B(0,n)
 s=r.r.bp(0,$.amn(),t.ha)
 r=a.h(0,"title")
@@ -133254,7 +133254,8 @@ p=n.hw$
 p.toString
 p.HL(A.m(n).i("ju.E").a(n))
 throw q}finally{}return new A.aQI(o)},
-m(){this.a.Y(0)}}
+m(){this.a.Y(0)
+this.c=!1}}
 A.aQI.prototype={
 $0(){var s=this.a,r=s.hw$
 if(r!=null)r.HL(s.$ti.i("ju.E").a(s))},

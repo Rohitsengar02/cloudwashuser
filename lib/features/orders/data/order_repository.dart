@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_user/core/network/api_client.dart';
 import 'package:cloud_user/features/orders/data/order_model.dart';
+import 'package:cloud_user/core/services/notification_service.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -9,15 +10,19 @@ part 'order_repository.g.dart';
 
 @Riverpod(keepAlive: true)
 OrderRepository orderRepository(OrderRepositoryRef ref) {
-  return OrderRepository(ref.watch(apiClientProvider));
+  return OrderRepository(
+    ref.watch(apiClientProvider),
+    ref.watch(notificationServiceProvider),
+  );
 }
 
 class OrderRepository {
   final Dio _dio;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService;
 
-  OrderRepository(this._dio);
+  OrderRepository(this._dio, this._notificationService);
 
   // Create order in Firebase ONLY (no MongoDB)
   Future<Map<String, dynamic>> createOrderFirebase(
@@ -25,16 +30,18 @@ class OrderRepository {
   ) async {
     try {
       String uid;
-      if (_auth.currentUser != null) {
+      // Prefer the userId passed in orderData (Stable Backend ID)
+      if (orderData['userId'] != null) {
+        uid = orderData['userId'];
+      } else if (_auth.currentUser != null) {
         uid = _auth.currentUser!.uid;
       } else {
-        // Fallback: If no Firebase user, check if we have a backend ID passed in the data
-        // This handles cases where Firebase Auth failed/not synced but user is logged in via backend
+        // Fallback: This handles cases where user is logged in via backend but
+        // Firebase Auth is not yet synced.
         uid =
-            orderData['userId'] ??
             orderData['_id'] ??
             'guest_${DateTime.now().millisecondsSinceEpoch}';
-        print('⚠️ No Firebase User found. Using ID: $uid for order creation.');
+        print('⚠️ No Stable ID or Firebase User. Using fallback: $uid');
       }
 
       // Generate order number and OTP
@@ -76,7 +83,51 @@ class OrderRepository {
           .doc(docRef.id)
           .set(orderDoc);
 
+      // 4. Create notification for Admin (so admin panel can listen/alert)
+      await _firestore.collection('admin_notifications').add({
+        'title': 'New Order Received',
+        'message': 'Order #${orderNumber} has been placed via the App.',
+        'orderId': docRef.id,
+        'amount': orderData['priceSummary']['total'],
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       print('✅ Order ${docRef.id} created successfully in Firebase');
+
+      // 5. Trigger Local Notification for User
+      await _notificationService.showNotification(
+        title: 'Order Placed Successfully! 🎉',
+        body:
+            'Your order #$orderNumber is now Pending. We will assign a washer soon.',
+      );
+
+      // 6. Persist to Notifications Collection
+      await _firestore.collection('notifications').add({
+        'userId': uid,
+        'title': 'Order Placed',
+        'message': 'Order #${orderNumber} placed successfully.',
+        'orderId': docRef.id,
+        'type': 'order_created',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 5. Sync to MongoDB (to trigger Socket.IO notifications if backend is running)
+      // ... existing sync logic ...
+      try {
+        // Add the Firebase ID to the data so they match
+        final mongoData = {
+          ...orderData,
+          '_id': docRef.id,
+          'orderNumber': orderNumber,
+          'otp': otp,
+        };
+        await _dio.post('orders', data: mongoData);
+        print('✅ Order synced to MongoDB/Socket Backend');
+      } catch (e) {
+        print('⚠️ MongoDB Sync skipped/failed (using Firebase only): $e');
+      }
 
       return {
         'success': true,

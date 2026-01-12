@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_user/core/network/api_client.dart';
@@ -11,7 +11,6 @@ final notificationRepositoryProvider = Provider((ref) {
 class NotificationRepository {
   final Dio _dio;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   NotificationRepository(this._dio);
 
@@ -25,20 +24,36 @@ class NotificationRepository {
     }
   }
 
-  Stream<List<Map<String, dynamic>>> listenToFirebaseNotifications() {
-    final user = _auth.currentUser;
-    if (user == null) return Stream.value([]);
-
+  Stream<List<Map<String, dynamic>>> listenToFirebaseNotifications(
+    String userId,
+  ) {
     return _firestore
         .collection('notifications')
-        .where('userId', isEqualTo: user.uid)
-        .orderBy('createdAt', descending: true)
+        .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
+          final notifications = snapshot.docs.map((doc) {
+            var data = doc.data();
+            // Convert Timestamp to String for UI consistency
+            if (data['createdAt'] is Timestamp) {
+              data = Map<String, dynamic>.from(data); // clone to modify
+              data['createdAt'] = (data['createdAt'] as Timestamp)
+                  .toDate()
+                  .toIso8601String();
+            }
             return {...data, '_id': doc.id, 'source': 'firebase'};
           }).toList();
+
+          // Sort in memory (newest first)
+          notifications.sort((a, b) {
+            final dateA =
+                DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(0);
+            final dateB =
+                DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(0);
+            return dateB.compareTo(dateA);
+          });
+
+          return notifications;
         });
   }
 

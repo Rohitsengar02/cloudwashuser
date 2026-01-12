@@ -78,75 +78,39 @@ class _CartScreenState extends ConsumerState<CartScreen>
               // --- RIGHT SIDE SIDEBAR (30%) ---
               Expanded(
                 flex: 3,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Background Image
-                    Image.network(
-                      'https://images.weserv.nl/?url=https://i.pinimg.com/736x/ab/66/8c/ab668c335e6b33a03695b169df175f73.jpg',
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Container(color: const Color(0xFF1A1A1A)),
-                    ),
-                    // Gradient Overlay
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.8),
-                            Colors.black.withOpacity(0.2),
-                            Colors.transparent,
-                          ],
-                          stops: const [0.0, 0.4, 0.7],
-                        ),
-                      ),
-                    ),
-                    // Content
-                    Column(
-                      children: [
-                        _buildStepperIndicator(),
-                        Expanded(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: Container(
-                              key: ValueKey(_currentStep),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 40,
-                                vertical: 60,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withOpacity(0.0),
-                                    Colors.black.withOpacity(0.4),
-                                    Colors.black.withOpacity(0.6),
-                                  ],
-                                ),
-                              ),
-                              child: _currentStep == 0
-                                  ? SingleChildScrollView(
-                                      child: _buildSummaryContent(
-                                        total,
-                                        cartItems.length +
-                                            cartState.selectedAddons.length,
-                                        totalDurationMinutes,
-                                      ),
-                                    )
-                                  : _buildBookingDetailsContent(
+                child: Container(
+                  color: const Color(0xFF1A1A1A), // Dark Background
+                  child: Column(
+                    children: [
+                      _buildStepperIndicator(),
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: Container(
+                            key: ValueKey(_currentStep),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                              vertical: 60,
+                            ),
+                            child: _currentStep == 0
+                                ? SingleChildScrollView(
+                                    child: _buildSummaryContent(
                                       total,
+                                      cartItems.length +
+                                          cartState.selectedAddons.length,
                                       totalDurationMinutes,
                                     ),
-                            ),
+                                  )
+                                : _buildBookingDetailsContent(
+                                    total,
+                                    totalDurationMinutes,
+                                  ),
                           ),
                         ),
-                        _buildStickyCheckoutButton(),
-                      ],
-                    ),
-                  ],
+                      ),
+                      _buildStickyCheckoutButton(),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1067,37 +1031,14 @@ class _CartScreenState extends ConsumerState<CartScreen>
           ),
         ),
         ...cartState.selectedAddons.map((addon) {
-          final durationMins = int.tryParse(
-            addon.duration.replaceAll(RegExp(r'[^0-9]'), ''),
-          );
           return _sidebarItemRow(
             addon.name,
             '₹${addon.price}',
             qty: '1x',
-            duration: durationMins != null ? '${durationMins} mins' : null,
+            duration: null,
             isDark: isDark,
           );
         }),
-        const SizedBox(height: 24),
-        _sidebarSectionHeader('Duration', isDark: isDark),
-        Row(
-          children: [
-            const Icon(
-              Icons.timer_outlined,
-              color: Color(0xFFFFCC00),
-              size: 16,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '$totalDuration mins',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
         const SizedBox(height: 24),
         _sidebarSectionHeader('Location', isDark: isDark),
         Text(
@@ -1297,7 +1238,6 @@ class _CartScreenState extends ConsumerState<CartScreen>
         ),
         const SizedBox(height: 40),
         _summaryRow('Items', count.toString()),
-        _summaryRow('Duration', '$totalDuration mins'),
         _summaryRow('Tax (18%)', '₹${(total * 0.18).toStringAsFixed(2)}'),
         const SizedBox(height: 20),
         const Divider(color: Colors.white24),

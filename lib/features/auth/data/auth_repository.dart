@@ -217,15 +217,37 @@ class AuthRepository {
 
         // 4. Sync MongoDB ID and info to Firestore
         final firebaseUser = _auth.currentUser;
-        if (firebaseUser != null) {
-          await _firestore.collection('users').doc(firebaseUser.uid).set({
-            '_id': response.data['_id'],
-            'name': response.data['name'],
-            'email': response.data['email'],
-            'phone': response.data['phone'],
-            'profileImage': response.data['profileImage'],
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+        final mongoId = response.data['_id'];
+        if (firebaseUser != null && mongoId != null) {
+          try {
+            final profileData = {
+              '_id': mongoId,
+              'name': response.data['name'],
+              'email': response.data['email'],
+              'phone': response.data['phone'],
+              'profileImage': response.data['profileImage'],
+              'updatedAt': FieldValue.serverTimestamp(),
+            };
+
+            // SYNC 1: To Firebase UID path (for individual device/session)
+            await _firestore
+                .collection('users')
+                .doc(firebaseUser.uid)
+                .set(profileData, SetOptions(merge: true));
+
+            // SYNC 2: To Global Backend ID path (Unified Identity)
+            // This allows Google and Form login to SHARE orders/notifications
+            await _firestore
+                .collection('users')
+                .doc(mongoId)
+                .set(profileData, SetOptions(merge: true));
+
+            print('✅ Unified Profile synced to Firestore (ID: $mongoId)');
+          } catch (firestoreError) {
+            print(
+              '⚠️ Firestore Sync failed (Check Firebase Rules): $firestoreError',
+            );
+          }
         }
       }
 

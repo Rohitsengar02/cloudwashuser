@@ -28,7 +28,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // ... existing init code ...
+    // Auto-select address if none selected
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(selectedAddressProvider) == null) {
+        ref.read(selectedAddressProvider.notifier).initializeDefault();
+      }
+    });
   }
 
   // ... _placeOrder mod ...
@@ -106,6 +111,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             .whenOrNull(
               data: (user) =>
                   user?['_id'] ?? FirebaseAuth.instance.currentUser?.uid,
+            ),
+        // Snapshot user details for Admin Panel display
+        'user': ref
+            .read(userProfileProvider)
+            .whenOrNull(
+              data: (user) {
+                final authUser = FirebaseAuth.instance.currentUser;
+                return {
+                  'name': user?['name'] ?? authUser?.displayName ?? 'Guest',
+                  'email': user?['email'] ?? authUser?.email ?? '',
+                  'phone': user?['phone'] ?? '',
+                  'profileImage': user?['profileImage'] ?? authUser?.photoURL,
+                  'id': user?['_id'] ?? authUser?.uid,
+                };
+              },
             ),
       };
 
@@ -275,28 +295,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF262626),
+              color: const Color(0xFF1A1A1A), // Dark Background
               borderRadius: BorderRadius.circular(24),
-              image: const DecorationImage(
-                image: NetworkImage(
-                  'https://images.weserv.nl/?url=https://i.pinimg.com/736x/ab/66/8c/ab668c335e6b33a03695b169df175f73.jpg',
-                ),
-                fit: BoxFit.cover,
-              ),
             ),
             child: Container(
               padding: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.9),
-                    Colors.black.withOpacity(0.4),
-                  ],
-                ),
-              ),
               child: Column(
                 children: [
                   _buildPricingCard(

@@ -544,88 +544,273 @@ class _NavActionButtonState extends State<_NavActionButton> {
   }
 }
 
-class _NotificationButton extends StatefulWidget {
+class _NotificationButton extends ConsumerStatefulWidget {
   final int unreadCount;
   const _NotificationButton({required this.unreadCount});
 
   @override
-  State<_NotificationButton> createState() => _NotificationButtonState();
+  ConsumerState<_NotificationButton> createState() =>
+      _NotificationButtonState();
 }
 
-class _NotificationButtonState extends State<_NotificationButton> {
+class _NotificationButtonState extends ConsumerState<_NotificationButton> {
   bool _isHovered = false;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+
+  void _toggleDropdown() {
+    if (_overlayEntry == null) {
+      _overlayEntry = _createOverlayEntry();
+      Overlay.of(context).insert(_overlayEntry!);
+    } else {
+      _removeOverlay();
+    }
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  OverlayEntry _createOverlayEntry() {
+    RenderBox renderBox = context.findRenderObject() as RenderBox;
+    var size = renderBox.size;
+
+    return OverlayEntry(
+      builder: (context) => Positioned(
+        width: 350,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: Offset(-size.width * 10, size.height + 10),
+          child: Material(
+            elevation: 20,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade100),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            _removeOverlay();
+                            context.push('/notifications');
+                          },
+                          child: const Text('View All'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 500),
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final notificationsAsync = ref.watch(
+                          notificationsProvider,
+                        );
+                        return notificationsAsync.when(
+                          data: (notifications) {
+                            if (notifications.isEmpty) {
+                              return const Padding(
+                                padding: EdgeInsets.all(40.0),
+                                child: Text(
+                                  'No new notifications',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              );
+                            }
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              itemCount: notifications.length,
+                              separatorBuilder: (_, __) =>
+                                  const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final n = notifications[index];
+                                final isRead = n['isRead'] == true;
+                                return ListTile(
+                                  dense: true,
+                                  onTap: () {
+                                    if (!isRead) {
+                                      ref
+                                          .read(notificationsProvider.notifier)
+                                          .markRead(
+                                            n['_id'],
+                                            source: n['source'],
+                                          );
+                                    }
+                                    _removeOverlay();
+                                  },
+                                  tileColor: isRead
+                                      ? null
+                                      : Colors.blue.withOpacity(0.05),
+                                  title: Text(
+                                    n['title'] ?? '',
+                                    style: TextStyle(
+                                      fontWeight: isRead
+                                          ? FontWeight.normal
+                                          : FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    n['message'] ?? '',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  leading: CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: isRead
+                                        ? Colors.grey[100]
+                                        : Colors.blue[50],
+                                    child: Icon(
+                                      _getIcon(n['type']),
+                                      size: 16,
+                                      color: isRead ? Colors.grey : Colors.blue,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          loading: () => const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(20.0),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          error: (e, _) => Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Text('Error: $e'),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getIcon(String? type) {
+    switch (type) {
+      case 'order_created':
+        return Icons.receipt_long;
+      case 'order_status':
+      case 'order_update':
+        return Icons.local_shipping;
+      default:
+        return Icons.notifications;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: InkWell(
-        onTap: () => context.push('/notifications'),
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? AppTheme.primary.withValues(alpha: 0.05)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                Icons.notifications_outlined,
-                color: _isHovered ? AppTheme.primary : AppTheme.textSecondary,
-                size: 24,
-              ),
-              if (widget.unreadCount > 0)
-                Positioned(
-                  top: -2,
-                  right: -1,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.0, end: 1.0),
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.elasticOut,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.red.withValues(alpha: 0.4),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: Text(
-                            widget.unreadCount > 9
-                                ? '9+'
-                                : '${widget.unreadCount}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: InkWell(
+          onTap: _toggleDropdown,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _isHovered
+                  ? AppTheme.primary.withValues(alpha: 0.05)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.notifications,
+                  color: _isHovered
+                      ? AppTheme.primary
+                      : AppTheme.primary.withOpacity(0.8),
+                  size: 32, // More prominent size
                 ),
-            ],
+                if (widget.unreadCount > 0)
+                  Positioned(
+                    top: -6,
+                    right: -6,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.elasticOut,
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.4),
+                                  blurRadius: 10,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 22,
+                              minHeight: 22,
+                            ),
+                            child: Text(
+                              widget.unreadCount > 9
+                                  ? '9+'
+                                  : '${widget.unreadCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

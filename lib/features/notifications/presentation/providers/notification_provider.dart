@@ -1,23 +1,53 @@
 import 'package:cloud_user/core/services/notification_service.dart';
 import 'package:cloud_user/core/services/socket_service.dart';
 import 'package:cloud_user/features/notifications/data/notification_repository.dart';
+import 'package:cloud_user/features/auth/presentation/providers/auth_state_provider.dart';
 import 'package:cloud_user/features/profile/presentation/providers/user_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
+
+// Reactive provider for Firebase UID
+final firebaseUidProvider = StreamProvider<String?>((ref) {
+  return FirebaseAuth.instance.authStateChanges().map((user) => user?.uid);
+});
 
 final notificationsProvider =
     StateNotifierProvider<
       NotificationNotifier,
       AsyncValue<List<Map<String, dynamic>>>
     >((ref) {
-      return NotificationNotifier(ref);
+      // Re-create this notifier whenever the user profile OR UID changes
+      // We prefer the MongoDB ID (_id) as it's stable across login methods (Google/Form)
+      final userAsync = ref.watch(userProfileProvider);
+      final firebaseUidAsync = ref.watch(firebaseUidProvider);
+      final isAuthenticated = ref.watch(authStateProvider).valueOrNull ?? false;
+
+      final stableId =
+          userAsync.valueOrNull?['_id'] ??
+          userAsync.valueOrNull?['id'] ??
+          firebaseUidAsync.valueOrNull;
+
+      return NotificationNotifier(
+        ref: ref,
+        userId: stableId,
+        isAuthenticated: isAuthenticated,
+      );
     });
 
 class NotificationNotifier
     extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>> {
   final Ref ref;
+  final String? userId;
+  final bool isAuthenticated;
   final Set<String> _notifiedIds = {};
+  StreamSubscription? _fbSubscription;
 
-  NotificationNotifier(this.ref) : super(const AsyncValue.loading()) {
+  NotificationNotifier({
+    required this.ref,
+    required this.userId,
+    required this.isAuthenticated,
+  }) : super(const AsyncValue.loading()) {
     _init();
   }
 
@@ -25,73 +55,80 @@ class NotificationNotifier
     try {
       final repo = ref.read(notificationRepositoryProvider);
 
-      // Load initial API notifications
-      final apiList = await repo.getNotifications();
-      // Add existing unread IDs to _notifiedIds to avoid alerts for old notifications
-      for (var n in apiList) {
-        if (n['_id'] != null) _notifiedIds.add(n['_id']);
+      // 1. Initial API load (Legacy/Backend) - Only if authenticated
+      List<Map<String, dynamic>> apiList = [];
+      if (isAuthenticated) {
+        apiList = await repo.getNotifications();
+        for (var n in apiList) {
+          if (n['_id'] != null) _notifiedIds.add(n['_id']);
+        }
       }
       state = AsyncValue.data(apiList);
 
-      // Listen to Firebase Notifications
-      repo.listenToFirebaseNotifications().listen((fbList) {
-        final currentList = state.value ?? [];
-        final freshNotifications = <Map<String, dynamic>>[];
+      // 2. Setup Firebase Stream (Crucial for Real-time + Persistence)
+      if (userId != null) {
+        _fbSubscription?.cancel();
+        _fbSubscription = repo
+            .listenToFirebaseNotifications(userId!)
+            .listen(
+              (fbList) {
+                final currentList = state.value ?? [];
 
-        for (var n in fbList) {
-          final id = n['_id'];
-          if (id != null && !_notifiedIds.contains(id)) {
-            _notifiedIds.add(id);
-            freshNotifications.add(n);
+                // Alert for new unread notifications
+                for (var n in fbList) {
+                  final id = n['_id'];
+                  if (id != null && !_notifiedIds.contains(id)) {
+                    _notifiedIds.add(id);
+                    if (n['isRead'] == false) {
+                      ref
+                          .read(notificationServiceProvider)
+                          .showNotification(
+                            title: n['title'] ?? 'New Notification',
+                            body: n['message'] ?? '',
+                          );
+                    }
+                  }
+                }
 
-            // Only alert if isRead is false
-            if (n['isRead'] == false) {
-              ref
-                  .read(notificationServiceProvider)
-                  .showNotification(
-                    title: n['title'] ?? 'New Notification',
-                    body: n['message'] ?? '',
+                // Merge Lists (preferring Firebase as source of truth)
+                final Map<String, Map<String, dynamic>> deduped = {};
+                for (var n in fbList) {
+                  deduped[n['_id']] = n;
+                }
+                for (var n in currentList) {
+                  if (!deduped.containsKey(n['_id'])) {
+                    deduped[n['_id']!] = n;
+                  }
+                }
+
+                final merged = deduped.values.toList();
+                merged.sort((a, b) {
+                  final dateA = DateTime.parse(
+                    a['createdAt'] ?? DateTime.now().toIso8601String(),
                   );
-            }
-          }
-        }
+                  final dateB = DateTime.parse(
+                    b['createdAt'] ?? DateTime.now().toIso8601String(),
+                  );
+                  return dateB.compareTo(dateA);
+                });
 
-        // Efficiently merge lists by ID to avoid duplicates
-        final merged = [...fbList];
-        for (var apiItem in currentList) {
-          if (!merged.any((item) => item['_id'] == apiItem['_id'])) {
-            merged.add(apiItem);
-          }
-        }
-        // Sort by date (newest first)
-        merged.sort((a, b) {
-          final dateA = DateTime.parse(
-            a['createdAt'] ?? DateTime.now().toIso8601String(),
-          );
-          final dateB = DateTime.parse(
-            b['createdAt'] ?? DateTime.now().toIso8601String(),
-          );
-          return dateB.compareTo(dateA);
-        });
-        state = AsyncValue.data(merged);
-      });
+                state = AsyncValue.data(merged);
+              },
+              onError: (e) {
+                print(
+                  '🔥 Notification Stream Error (Check Firestore Index): $e',
+                );
+              },
+            );
+      }
 
-      // Socket Setup
+      // 3. Socket Setup
       final socket = ref.read(socketServiceProvider);
       socket.init();
 
-      // Listen for User to join room
-      ref.listen(userProfileProvider, (previous, next) {
-        next.whenData((user) {
-          if (user != null && (user['_id'] != null || user['id'] != null)) {
-            socket.joinRoom(user['_id'] ?? user['id']);
-          }
-        });
-      });
-
       // Trigger initial check if already loaded
       ref.read(userProfileProvider).whenData((user) {
-        if (user != null) {
+        if (user != null && (user['_id'] != null || user['id'] != null)) {
           socket.joinRoom(user['_id'] ?? user['id']);
         }
       });
@@ -101,8 +138,6 @@ class NotificationNotifier
         final id = data['_id'];
         if (id != null && !currentList.any((n) => n['_id'] == id)) {
           state = AsyncValue.data([data, ...currentList]);
-
-          // Show local notification for socket
           if (!_notifiedIds.contains(id)) {
             _notifiedIds.add(id);
             ref
@@ -126,13 +161,17 @@ class NotificationNotifier
     if (source != 'firebase') {
       final currentList = state.value ?? [];
       final newList = currentList.map((n) {
-        if (n['_id'] == id) {
-          return {...n, 'isRead': true};
-        }
+        if (n['_id'] == id) return {...n, 'isRead': true};
         return n;
       }).toList();
       state = AsyncValue.data(newList);
     }
+  }
+
+  @override
+  void dispose() {
+    _fbSubscription?.cancel();
+    super.dispose();
   }
 }
 

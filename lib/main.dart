@@ -6,6 +6,8 @@ import 'package:cloud_user/core/router/app_router.dart';
 import 'package:cloud_user/core/theme/app_theme.dart';
 import 'package:cloud_user/core/widgets/animated_splash_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,14 +16,34 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:cloud_user/core/services/notification_service.dart';
 import 'package:cloud_user/features/notifications/presentation/providers/notification_provider.dart';
 
+// Background Handler (Must be top-level)
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you want to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("🌙 Handling a background message: ${message.messageId}");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   usePathUrlStrategy(); // Remove # from URLs
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   final container = ProviderContainer();
-  await container.read(notificationServiceProvider).init();
+  try {
+    // Initialize notifications (skip waiting on web to prevent blocking if SW fails)
+    final notificationFuture = container
+        .read(notificationServiceProvider)
+        .init();
+    if (!kIsWeb) {
+      await notificationFuture;
+    }
+  } catch (e) {
+    print('⚠️ Notification initialization failed: $e');
+  }
 
   runApp(
     UncontrolledProviderScope(

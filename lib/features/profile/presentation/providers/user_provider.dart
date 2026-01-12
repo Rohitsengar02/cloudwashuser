@@ -121,4 +121,13 @@ class UserProfile extends _$UserProfile {
       state = AsyncValue.error(e, st);
     }
   }
+
+  Future<void> setFcmToken(String token) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'fcmToken': token,
+      }, SetOptions(merge: true));
+    }
+  }
 }

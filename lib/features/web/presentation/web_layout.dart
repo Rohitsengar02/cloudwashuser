@@ -3,7 +3,6 @@ import 'package:cloud_user/features/web/presentation/widgets/web_footer.dart';
 import 'package:cloud_user/features/web/presentation/widgets/web_navbar.dart';
 import 'package:cloud_user/features/notifications/presentation/providers/notification_provider.dart';
 import 'package:cloud_user/features/orders/data/order_provider.dart';
-import 'package:cloud_user/features/orders/data/order_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';

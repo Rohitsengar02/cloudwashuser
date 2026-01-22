@@ -129,24 +129,27 @@ class WebStaticPage extends StatelessWidget {
 
       case StaticPageType.privacy:
         return _PageData(
-          title: 'Privacy Policy',
+          title: 'Cloudwash iOS App Privacy Policy',
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _paragraph(
-                'Your privacy is important to us. This policy outlines how we collect, use, and protect your data.',
+                'This privacy policy applies to the Cloudwash iOS mobile application ("App") available on the Apple App Store.',
+              ),
+              _paragraph(
+                'The App is a web-based application that displays content from https://cloudwash.in using Apple’s WKWebView. We do not independently collect, store, or process personal data within the iOS app itself beyond what is collected through the website.',
               ),
               _heading('Data Collection'),
               _paragraph(
-                'We collect your name, phone number, and address to facilitate service delivery. Location data is used to match you with nearby professionals.',
+                'Any data collected (such as name, phone number, email address, or location) is collected only when the user voluntarily submits information through the website forms.',
               ),
-              _heading('Data Security'),
+              _heading('Tracking'),
               _paragraph(
-                'We use industry-standard encryption to protect your personal information. We do not sell your data to third parties.',
+                'The Cloudwash iOS App does NOT use third-party tracking SDKs, advertising identifiers, or cross-app tracking mechanisms.',
               ),
-              _heading('Your Rights'),
+              _heading('Contact'),
               _paragraph(
-                'You have the right to access, correct, or delete your personal data at any time.',
+                'If you have questions about this policy, contact support@cloudwash.in',
               ),
             ],
           ),

@@ -203,7 +203,7 @@ class ProfileScreen extends ConsumerWidget {
         icon: Icons.security_outlined,
         title: 'Privacy Policy',
         subtitle: 'Your data and safety',
-        onTap: () => context.push('/privacy'),
+        onTap: () => context.push('/privacy-policy'),
       ),
       _buildMenuItem(
         context,

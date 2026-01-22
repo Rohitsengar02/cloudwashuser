@@ -75,7 +75,7 @@ class WebFooter extends StatelessWidget {
                       spacing: 20,
                       runSpacing: 10,
                       children: [
-                        _MinimalLink('Privacy Policy', route: '/privacy'),
+                        _MinimalLink('Privacy Policy', route: '/privacy-policy'),
                         _MinimalLink('Terms of Service', route: '/terms'),
                         _MinimalLink('Child Protection', route: '/child-protection'),
                         _MinimalLink('Sitemap', route: '/'),
@@ -93,7 +93,7 @@ class WebFooter extends StatelessWidget {
                     ),
                     Row(
                       children: [
-                        _MinimalLink('Privacy Policy', route: '/privacy'),
+                        _MinimalLink('Privacy Policy', route: '/privacy-policy'),
                         const SizedBox(width: 32),
                         _MinimalLink('Terms of Service', route: '/terms'),
                         const SizedBox(width: 32),

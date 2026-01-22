@@ -234,7 +234,7 @@ List<RouteBase> _buildWebRoutes() {
           const WebStaticPage(pageType: StaticPageType.terms),
     ),
     GoRoute(
-      path: '/privacy',
+      path: '/privacy-policy',
       builder: (context, state) =>
           const WebStaticPage(pageType: StaticPageType.privacy),
     ),

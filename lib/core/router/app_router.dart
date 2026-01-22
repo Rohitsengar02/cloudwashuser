@@ -112,7 +112,7 @@ List<RouteBase> _buildWebRoutes() {
           builder: (context, state) =>
               kIsWeb ? const WebHomeScreen() : const MobileHomeScreen(),
         ),
-        // ... (rest of the file stays same)
+        // ... (same)
         GoRoute(
           path: '/notifications',
           name: 'web-notifications',
